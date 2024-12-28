@@ -1,0 +1,17 @@
+{% extends 'components/admin/reports/report.html' %}
+
+{% block report_content %}
+<!-- Content for Projects Report -->
+<section class="mb-8 bg-white rounded-xl shadow-sm">
+    <div class="p-8">
+        <h2 class="text-2xl font-semibold text-gray-800">Projects Report</h2>
+        <!-- Add your projects report content here -->
+    </div>
+</section>
+{% endblock %}
+
+{% block content %}
+    {% with section='projects_report' %}
+        {{ super() }}
+    {% endwith %}
+{% endblock %}

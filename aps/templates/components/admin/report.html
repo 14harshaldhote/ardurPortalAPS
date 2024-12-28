@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<!-- Main container for report page -->
+<div class="container mx-auto p-4">
+    <!-- Horizontal Navbar -->
+    <nav class="bg-gray-800 text-white p-4 rounded-lg shadow-lg">
+        <div class="flex justify-around">
+            <a href="{% url 'aps_admin:feature_usage' %}" class="px-6 py-2 text-lg font-semibold hover:bg-yellow-400 hover:text-gray-800 rounded-lg 
+                {% if section == 'feature_usage' %}bg-yellow-300 text-gray-800{% endif %}">
+                Feature Usage
+            </a>
+            <a href="{% url 'aps_admin:projects_report' %}" class="px-6 py-2 text-lg font-semibold hover:bg-yellow-400 hover:text-gray-800 rounded-lg
+                {% if section == 'projects_report' %}bg-yellow-300 text-gray-800{% endif %}">
+                Projects Report
+            </a>
+            <a href="{% url 'aps_admin:system_errors' %}" class="px-6 py-2 text-lg font-semibold hover:bg-yellow-400 hover:text-gray-800 rounded-lg
+                {% if section == 'system_errors' %}bg-yellow-300 text-gray-800{% endif %}">
+                System Errors
+            </a>
+            <a href="{% url 'aps_admin:system_usage' %}" class="px-6 py-2 text-lg font-semibold hover:bg-yellow-400 hover:text-gray-800 rounded-lg
+                {% if section == 'system_usage' %}bg-yellow-300 text-gray-800{% endif %}">
+                System Usage
+            </a>
+        </div>
+    </nav>
+
+    <!-- Main content sections will be included here -->
+    <div class="mt-6">
+        {% block report_content %}
+        {% endblock %}
+    </div>
+</div>
+{% endblock %}

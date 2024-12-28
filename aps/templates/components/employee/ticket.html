@@ -1,0 +1,39 @@
+{% block content %}
+    <div id="raise_ticket">
+        <h2 class="text-xl font-semibold text-gray-800 mb-4">Raise an IT Support Ticket</h2>
+        <p class="text-gray-700 mb-4">Please provide the details of your issue below to create a support ticket.</p>
+
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-success text-green-500 font-medium mb-4">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+
+        <form method="post" action="{% url 'it_support' %}">
+            {% csrf_token %}
+            <fieldset class="border p-4 rounded-lg">
+                <legend class="text-lg font-semibold text-gray-700 mb-4"><u>Support</u></legend>
+
+                <div class="form-group mb-4">
+                    <label for="issue_type" class="block text-gray-600 mb-2">Issue Type:</label>
+                    <select id="issue_type" class="block w-full p-3 border border-gray-300 rounded-md" name="issue_type">
+                        <option value="Hardware Issue">Hardware Issue</option>
+                        <option value="Software Issue">Software Issue</option>
+                        <option value="Network Issue">Network Issue</option>
+                        <option value="Internet Issue">Internet Issue</option>
+                        <option value="Application Issue">Application Issue</option>
+                    </select>
+                </div>
+
+                <div class="form-group mb-4">
+                    <label for="description" class="block text-gray-600 mb-2">Description:</label>
+                    <textarea class="block w-full p-3 border border-gray-300 rounded-md" id="description" name="description" placeholder="Enter issue description here."></textarea>
+                </div>
+            </fieldset>
+
+            <div class="my-4">
+                <button type="submit" class="bg-[#F29F67] text-white py-2 px-6 rounded-md hover:bg-[#d87d2b] transition-all duration-300">Submit Ticket</button>
+            </div>
+        </form>
+    </div>
+{% endblock %}

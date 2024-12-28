@@ -1,0 +1,106 @@
+<nav class="w-64 min-h-screen p-6 shadow-xl border-r border-gray-100 bg-gray-200">
+    <div class="mb-10">
+        <h1 class="text-3xl font-semibold text-black tracking-tight gradient-text">APS Portal</h1>
+    </div>
+    <ul class="space-y-2">
+        <!-- Common Navigation for All Roles -->
+        <li>
+            <a  href="{% url 'dashboard' %}" class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
+                Dashboard
+            </a>
+        </li>
+        <li>
+            <a class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
+                Profile
+            </a>
+        </li>
+
+        <!-- Employee Specific -->
+        {% if is_employee %}
+        <li>
+            <a class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
+                Attendance
+            </a>
+        </li>
+        <li>
+            <a class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
+                Time Sheet
+            </a>
+        </li>
+        <li>
+            <a class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
+                Leave Request
+            </a>
+        </li>
+        {% endif %}
+
+        <!-- HR Specific -->
+        {% if is_hr %}
+        <li>
+            <a class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
+                Employee Profiles
+            </a>
+        </li>
+        <li>
+            <a class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
+                Track Leaves
+            </a>
+        </li>
+        <li>
+            <a class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
+                Update Employee Info
+            </a>
+        </li>
+        {% endif %}
+
+        <!-- Manager Specific -->
+        {% if is_manager %}
+        <li>
+            <a class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
+                Assign Tasks
+            </a>
+        </li>
+        <li>
+            <a class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
+                Approve Leaves
+            </a>
+        </li>
+        <li>
+            <a class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
+                Employee Attendance
+            </a>
+        </li>
+        {% endif %}
+
+        <!-- Admin Specific -->
+        {% if is_admin %}
+        <li>
+            <a href="{% url 'aps_admin:user_sessions' %}" class="block py-3 px-4 rounded-lg transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
+                User Sessions
+            </a>
+        </li>
+        <li>
+            <a href="{% url 'aps_admin:it_support_admin' %}" class="block py-3 px-4 rounded-lg transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
+                IT Support
+            </a>
+        </li>
+        <li>
+            <a href="{% url 'aps_admin:report' %}" class="block py-3 px-4 rounded-lg transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
+                Report
+            </a>
+        </li>
+        {% endif %}
+
+        <!-- Common Navigation for All Roles -->
+        <li>
+            <a class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
+                IT Support
+            </a>
+        </li>
+        <li>
+            <a class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
+                Chat Room
+            </a>
+        </li>
+    </ul>
+</nav>

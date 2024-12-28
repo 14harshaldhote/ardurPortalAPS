@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Tracking Web Application{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Linlegrey:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background-color: #F2F3F6;
+        }
+
+        .greeting {
+            font-family: 'Linlegrey', sans-serif;
+            font-size: 3rem;
+            font-weight: 100;
+        }
+
+        @keyframes gradientAnimation {
+            0% {
+                background-position: 0% 50%;
+            }
+
+            50% {
+                background-position: 100% 50%;
+            }
+
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+
+        .gradient-text {
+            background: linear-gradient(45deg, #F29F67, #d54c5a, #118748);
+            background-size: 200% 200%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: gradientAnimation 5s ease infinite;
+        }
+
+        .watermark {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            opacity: 0.5;
+            width: 200px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="flex">
+        {% include 'navbar.html' %}
+        <div class="flex-1 p-6 mb-6 shadow-lg">
+            <header class="flex justify-between items-center p-6">
+                <p id="greeting" class="greeting text-black font-thin text-4xl">
+                    <span class="font-semibold text-sm">{{ user.first_name }} {{ user.last_name }}</span>
+                </p>
+
+                <div class="text-sm text-white flex items-center space-x-4">
+                    <span class="font-semibold text-black username">{{ user.username }}</span>
+                    <a href="{% url 'logout' %}" class="inline-block py-2 px-6 rounded-full bg-red-500 text-white 
+                        font-semibold uppercase tracking-wider transform transition-all duration-300 ease-in-out 
+                        hover:bg-red-600 hover:scale-105 focus:ring-4 focus:ring-red-300">
+                        Logout
+                    </a>
+                </div>
+            </header>
+
+            <div>
+                {% block content %}
+                {% endblock %}
+            </div>
+
+            {% load static %}
+            <img src="{% static 'images/ardurtech.png' %}" alt="Ardur Technology Watermark" class="watermark">
+        </div>
+    </div>
+
+    <!-- JavaScript for idle time tracking -->
+    <script>
+        let idleTime = 0;
+
+        function resetIdleTime() {
+            idleTime = 0;
+        }
+
+        function incrementIdleTime() {
+            idleTime++;
+            if (idleTime > 5) { // 5 minutes of idle time
+                // Send idle time to the server to update session
+                fetch('/update_idle_time/', {
+                    method: 'POST',
+                    body: JSON.stringify({ idle_time: idleTime }),
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value // Add CSRF token
+                    }
+                });
+            }
+        }
+
+        setInterval(incrementIdleTime, 60000); // Every minute
+        document.addEventListener('mousemove', resetIdleTime);
+        document.addEventListener('keypress', resetIdleTime);
+
+        // Dynamic Greeting
+        function getGreeting() {
+            const hour = new Date().getHours();
+            if (hour < 12) {
+                return "Good Morning";
+            } else if (hour < 18) {
+                return "Good Afternoon";
+            } else {
+                return "Good Evening";
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", function () {
+            const greetingElement = document.getElementById("greeting");
+            greetingElement.innerHTML = `${getGreeting()} <span class="font-semibold text-xl">{{ user.first_name }} {{ user.last_name }}</span>`;
+        });
+    </script>
+</body>
+
+</html>
