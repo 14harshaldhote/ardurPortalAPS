@@ -1,10 +1,13 @@
 from django.shortcuts import render
 from django.contrib.auth.models import User, Group
-from .models import UserSession, ITSupportTicket, Attendance, SystemError, UserComplaint, FailedLoginAttempt, PasswordChange, RoleAssignmentAudit, FeatureUsage, SystemUsage
+from .models import (UserSession, ITSupportTicket, Attendance, SystemError, 
+                    UserComplaint, FailedLoginAttempt, PasswordChange, 
+                    RoleAssignmentAudit, FeatureUsage, SystemUsage, 
+                    Timesheet, LeaveRequest, LeaveBalance)
 from django.db.models import Q
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from django.utils import timezone
-from datetime import datetime
+from django.contrib import messages
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -392,39 +395,40 @@ def is_employee(user):
 # IT Support View
 
 @login_required
-def create_ticket(request):
-    # Check if the logged-in user is part of the Employee group
-    if not request.user.groups.filter(name='Employee').exists():
-        messages.error(request, "You do not have permission to create a ticket.")
-        return redirect('home')  # Redirect to home or an appropriate page if not an Employee
+def it_support_home(request):
+    return render(request, 'components/employee/it_support.html')
 
+@login_required
+def create_ticket(request):
     if request.method == 'POST':
         issue_type = request.POST.get('issue_type')
         description = request.POST.get('description')
-        subject = request.POST.get('subject', 'No subject')  # Default to 'No subject' if not provided
 
-        # Check if necessary fields are provided
         if not issue_type or not description:
             messages.error(request, "Issue Type and Description are required.")
-            return redirect('create_ticket')  # Redirect back to the ticket creation page
-        
-        # Create the ticket and associate it with the logged-in user
-        ticket = ITSupportTicket(
+            return redirect('create_ticket')
+
+        ITSupportTicket.objects.create(
             user=request.user,
             issue_type=issue_type,
             description=description,
-            subject=subject,
-            status='Open'  # Set the ticket status to 'Open' initially
+            status='Open'
         )
-        ticket.save()  # Save the ticket to the database
-
         messages.success(request, "Your ticket has been created successfully.")
-        return redirect('ticket_list')  # Redirect to a list or detail view of the tickets
-    else:
-        return render(request, 'create_ticket.html')
+        return redirect('it_support_home')
+
+    return render(request, 'components/employee/create_ticket.html')
+
+@login_required
+def change_password(request):
+    if request.method == 'POST':
+        # Logic for password change
+        messages.success(request, "Password changed successfully.")
+        return redirect('it_support_home')
+    return render(request, 'components/employee/change_password.html')
 # Attendance View
 @login_required
-def attendance(request):
+def attendance_view(request):
     # Check if the user is in either Employee or Manager group
     if request.user.groups.filter(name='Employee').exists() or request.user.groups.filter(name='Manager').exists():
         # Get the user's attendance data
@@ -434,7 +438,7 @@ def attendance(request):
         total_leave = user_attendance.filter(status='On Leave').count()
         total_wfh = user_attendance.filter(status='Work From Home').count()
 
-        return render(request, 'aps/attendance.html', {
+        return render(request, 'components/employee/attendance.html', {
             'total_present': total_present,
             'total_absent': total_absent,
             'total_leave': total_leave,
@@ -445,3 +449,117 @@ def attendance(request):
     else:
         messages.error(request, "You do not have permission to access this page.")
         return redirect('home')  # Redirect to home page if the user is not authorized
+
+
+''' ---------------------------------------- TIMESHEET AREA ---------------------------------------- '''
+@login_required
+def timesheet_view(request):
+    if request.method == "POST":
+        # Handle form submission
+        try:
+            # Get the submitted data
+            week_start_date = request.POST.get('week_start_date')
+            project_names = request.POST.getlist('project_name[]')
+            task_names = request.POST.getlist('task_name[]')
+            hours = request.POST.getlist('hours[]')
+
+            # Validate that project names, task names, and hours lists are all the same length
+            if len(project_names) != len(task_names) or len(task_names) != len(hours):
+                messages.error(request, "Project name, task name, and hours should have the same number of entries.")
+                return redirect('aps:timesheet')
+
+            # Create the Timesheet objects
+            for project_name, task_name, hour in zip(project_names, task_names, hours):
+                timesheet = Timesheet(
+                    user=request.user,
+                    week_start_date=week_start_date,
+                    project_name=project_name,
+                    task_name=task_name,
+                    hours=float(hour)
+                )
+                timesheet.save()
+
+            messages.success(request, "Timesheet submitted successfully!")
+            return redirect('aps:timesheet')
+
+        except Exception as e:
+            messages.error(request, f"An error occurred: {e}")
+            return redirect('aps:timesheet')
+
+    else:
+        # Display the form on GET request
+        today = timezone.now().date()
+
+        # Fetch the timesheet history for the logged-in user
+        timesheet_history = Timesheet.objects.filter(user=request.user).order_by('-week_start_date')
+
+        return render(request, 'components/employee/timesheet.html', {'today': today, 'timesheet_history': timesheet_history})
+
+
+''' ---------------------------------------- LEAVE AREA ---------------------------------------- '''
+
+@login_required
+def leave_request_view(request):
+    """View for employees to submit leave requests"""
+    if request.method == 'POST':
+        # Extracting data from POST request
+        leave_type = request.POST.get('leave_type')
+        start_date = request.POST.get('start_date')
+        end_date = request.POST.get('end_date')
+        leave_days = int(request.POST.get('leave_days'))
+        reason = request.POST.get('reason')
+
+        # Create a new leave request instance
+        leave_request = LeaveRequest(
+            emp_id=request.user,  # Assign the employee to the leave request
+            leave_type=leave_type,
+            start_date=start_date,
+            end_date=end_date,
+            leave_days=leave_days,
+            reason=reason
+        )
+        leave_request.save()
+
+        # Update leave balance
+        leave_balance = LeaveBalance.objects.get(emp_id=request.user)
+        leave_balance.applied_leave += leave_days
+        leave_balance.balance_leaves -= leave_days
+        leave_balance.save()
+
+        messages.success(request, 'Leave request submitted successfully!')
+        return redirect('aps_employee:view_leave_balance')  # Redirect to view balance after submission
+    return render(request, 'aps/employee/leave_request.html')
+
+@login_required
+def view_leave_balance(request):
+    """View for employees to see their leave balance"""
+    leave_balance = LeaveBalance.objects.get(emp_id=request.user)
+    return render(request, 'aps/employee/view_leave_balance.html', {'leave_balance': leave_balance})
+
+@login_required
+@permission_required('aps.change_leavebalance', raise_exception=True)
+def approve_leave(request, leave_id):
+    """HR/Manager view to approve leave requests"""
+    leave_request = get_object_or_404(LeaveRequest, id=leave_id)
+    leave_balance = LeaveBalance.objects.get(emp_id=leave_request.emp_id)
+
+    if request.method == 'POST':
+        leave_request.status = 'Approved'
+        leave_request.save()
+
+        leave_balance.pending_for_approval_leaves -= leave_request.leave_days
+        leave_balance.applied_leave += leave_request.leave_days
+        leave_balance.balance_leaves -= leave_request.leave_days
+        leave_balance.save()
+
+        messages.success(request, f'Leave request for {leave_request.emp_id.username} has been approved.')
+        return redirect('aps_hr_manager:view_leave_requests')
+
+    return render(request, 'aps/hr_manager/approve_leave.html', {'leave_request': leave_request})
+
+@login_required
+@permission_required('aps.view_leaverequest', raise_exception=True)
+def view_leave_requests(request):
+    """HR/Manager view to see all leave requests"""
+    leave_requests = LeaveRequest.objects.filter(status='Pending')  # You can modify status filter
+    return render(request, 'aps/hr_manager/view_leave_requests.html', {'leave_requests': leave_requests})

@@ -57,7 +57,7 @@ TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
         'DIRS': [
-            os.path.join(BASE_DIR, 'aps/templates'),  # This should be set correctly
+            os.path.join(BASE_DIR, 'aps/templates'),  # Ensure the directory path is correct
         ],
         'APP_DIRS': True,
         'OPTIONS': {
@@ -66,12 +66,15 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
-                'aps.context_processors.is_admin',  # Add this line
-
+                'aps.context_processors.is_admin',    # Include custom context processors
+                'aps.context_processors.is_manager',
+                'aps.context_processors.is_employee',
+                'aps.context_processors.is_hr',
             ],
         },
     },
 ]
+
 
 
 
@@ -140,3 +143,13 @@ SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 # settings.py
 TIME_ZONE = 'Asia/Kolkata'
 USE_TZ = True  # Uncomment this to ensure Django uses timezone-aware datetimes
+
+
+# settings.py
+LOGIN_URL = '/login/'
+
+
+# Add permissions for the leave system
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+]

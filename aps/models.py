@@ -257,3 +257,52 @@ class Attendance(models.Model):
     
     def __str__(self):
         return f"{self.user.username} - {self.date} - {self.status}"
+    
+
+
+class Timesheet(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='timesheets')
+    week_start_date = models.DateField()
+    project_name = models.CharField(max_length=255)
+    task_name = models.CharField(max_length=255)
+    hours = models.FloatField()
+
+    def __str__(self):
+        return f"Timesheet for {self.project_name} - {self.week_start_date}"
+
+    class Meta:
+        unique_together = ('user', 'week_start_date', 'project_name', 'task_name')  # Corrected field name 'emp_id' to 'user'
+        ordering = ['-week_start_date']  # Orders the entries by date (latest first)
+
+
+""" ------------------ LEAVE AREA ------------------ """
+
+class LeaveRequest(models.Model):
+    LEAVE_TYPES = [
+        ('Sick Leave', 'Sick Leave'),
+        ('Casual Leave', 'Casual Leave'),
+        ('Earned Leave', 'Earned Leave'),
+        ('Loss of Pay', 'Loss of Pay'),
+    ]
+    emp_id = models.ForeignKey(User, on_delete=models.CASCADE)
+    leave_type = models.CharField(max_length=50, choices=LEAVE_TYPES)
+    start_date = models.DateField()
+    end_date = models.DateField()
+    leave_days = models.IntegerField()
+    reason = models.TextField()
+
+    def __str__(self):
+        return f"Leave Request by {self.emp_id.username} for {self.leave_type}"
+
+class LeaveBalance(models.Model):
+    emp_id = models.OneToOneField(User, on_delete=models.CASCADE)
+    total_leave = models.IntegerField(default=20)
+    consumed_leave = models.IntegerField(default=0)
+    applied_leave = models.IntegerField(default=0)
+    balance_leaves = models.IntegerField(default=20)
+    pending_for_approval_leaves = models.IntegerField(default=0)
+    loss_of_pay_leaves = models.IntegerField(default=0)
+    status = models.CharField(max_length=50, default='Open')
+
+    def __str__(self):
+        return f"Leave Balance for {self.emp_id.username}"

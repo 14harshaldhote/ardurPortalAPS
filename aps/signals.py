@@ -57,3 +57,36 @@ def log_group_change(sender, instance, action, **kwargs):
         print(f"User {instance.username} added to group(s): {', '.join([group.name for group in instance.groups.all()])}")
     elif action == 'post_remove':
         print(f"User {instance.username} removed from group(s): {', '.join([group.name for group in instance.groups.all()])}")
+
+
+from django.contrib.auth.signals import user_logged_in, user_logged_out
+from django.utils import timezone
+from .models import Attendance
+
+# Signal to track user login and mark attendance
+def mark_attendance_on_login(sender, request, user, **kwargs):
+    today = timezone.now().date()
+    attendance, created = Attendance.objects.get_or_create(user=user, date=today)
+    
+    if created:
+        attendance.status = 'Absent'  # Initially mark as absent
+        attendance.save()
+
+user_logged_in.connect(mark_attendance_on_login)
+
+# Signal to track logout and mark as present if session is longer than 6 hours
+def mark_attendance_on_logout(sender, request, user, **kwargs):
+    today = timezone.now().date()
+    try:
+        attendance = Attendance.objects.get(user=user, date=today)
+        if attendance.status != 'Present':
+            login_time = request.session.get('login_time', timezone.now())
+            session_duration = timezone.now() - login_time
+            
+            if session_duration.total_seconds() > 6 * 60 * 60:
+                attendance.status = 'Present'
+                attendance.save()
+    except Attendance.DoesNotExist:
+        pass
+
+user_logged_out.connect(mark_attendance_on_logout)
