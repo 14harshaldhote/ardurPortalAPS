@@ -13,6 +13,26 @@ from django.contrib.auth import authenticate, login, logout, update_session_auth
 from django.contrib.auth.decorators import login_required, user_passes_test
 from .helpers import is_user_in_group
 
+
+''' ------------------ ROLE-BASED CHECKS ------------------ '''
+
+def is_admin(user):
+    """Check if the user belongs to the 'Admin' group."""
+    return user.groups.filter(name="Admin").exists()
+
+def is_hr(user):
+    """Check if the user belongs to the 'HR' group."""
+    return user.groups.filter(name="HR").exists()
+
+def is_manager(user):
+    """Check if the user belongs to the 'Manager' group."""
+    return user.groups.filter(name="Manager").exists()
+
+def is_employee(user):
+    """Check if the user belongs to the 'Employee' group."""
+    return user.groups.filter(name="Employee").exists()
+
+
 ''' ----------------- COMMON AREA ----------------- '''
 @login_required
 def reset_password(request):
@@ -499,6 +519,7 @@ def timesheet_view(request):
 ''' ---------------------------------------- LEAVE AREA ---------------------------------------- '''
 
 @login_required
+@user_passes_test(is_employee)  # Only employees can access leave request page
 def leave_request_view(request):
     """View for employees to submit leave requests"""
     if request.method == 'POST':
@@ -526,20 +547,21 @@ def leave_request_view(request):
         leave_balance.balance_leaves -= leave_days
         leave_balance.save()
 
-        messages.success(request, 'Leave request submitted successfully!')
         return redirect('aps_employee:view_leave_balance')  # Redirect to view balance after submission
-    return render(request, 'aps/employee/leave_request.html')
+
+    return render(request, 'components/employee/leave_request.html')
 
 @login_required
+@user_passes_test(is_employee)
 def view_leave_balance(request):
     """View for employees to see their leave balance"""
     leave_balance = LeaveBalance.objects.get(emp_id=request.user)
-    return render(request, 'aps/employee/view_leave_balance.html', {'leave_balance': leave_balance})
+    return render(request, 'components/employee/view_leave_balance.html', {'leave_balance': leave_balance})
 
 @login_required
-@permission_required('aps.change_leavebalance', raise_exception=True)
+@user_passes_test(is_admin)  # Admin can approve leaves for all
 def approve_leave(request, leave_id):
-    """HR/Manager view to approve leave requests"""
+    """Admin view to approve leave requests"""
     leave_request = get_object_or_404(LeaveRequest, id=leave_id)
     leave_balance = LeaveBalance.objects.get(emp_id=leave_request.emp_id)
 
@@ -552,14 +574,79 @@ def approve_leave(request, leave_id):
         leave_balance.balance_leaves -= leave_request.leave_days
         leave_balance.save()
 
-        messages.success(request, f'Leave request for {leave_request.emp_id.username} has been approved.')
-        return redirect('aps_hr_manager:view_leave_requests')
+        return redirect('aps_admin:view_leave_requests')
 
-    return render(request, 'aps/hr_manager/approve_leave.html', {'leave_request': leave_request})
+        return render(request, 'components/admin/approve_leave.html', {'leave_request': leave_request})
 
 @login_required
-@permission_required('aps.view_leaverequest', raise_exception=True)
-def view_leave_requests(request):
-    """HR/Manager view to see all leave requests"""
-    leave_requests = LeaveRequest.objects.filter(status='Pending')  # You can modify status filter
-    return render(request, 'aps/hr_manager/view_leave_requests.html', {'leave_requests': leave_requests})
+@user_passes_test(is_hr)  # HR can approve leaves for special cases
+def approve_leave_hr(request, leave_id):
+    """HR view to approve leave requests"""
+    leave_request = get_object_or_404(LeaveRequest, id=leave_id)
+    leave_balance = LeaveBalance.objects.get(emp_id=leave_request.emp_id)
+
+    if request.method == 'POST':
+        leave_request.status = 'Approved'
+        leave_request.save()
+
+        leave_balance.pending_for_approval_leaves -= leave_request.leave_days
+        leave_balance.applied_leave += leave_request.leave_days
+        leave_balance.balance_leaves -= leave_request.leave_days
+        leave_balance.save()
+
+        return redirect('aps_hr_manager:view_leave_requests')
+
+    return render(request, 'components/hr_manager/approve_leave.html', {'leave_request': leave_request})
+
+@login_required
+@user_passes_test(is_manager)  # Manager can approve leave requests for their team
+def approve_leave_manager(request, leave_id):
+    """Manager view to approve leave requests for their team"""
+    leave_request = get_object_or_404(LeaveRequest, id=leave_id)
+
+    # Check if the leave request is for an employee in the manager's team
+    if leave_request.emp_id.manager != request.user:
+        raise Http404("You cannot approve leaves for this employee.")
+
+    leave_balance = LeaveBalance.objects.get(emp_id=leave_request.emp_id)
+
+    if request.method == 'POST':
+        leave_request.status = 'Approved'
+        leave_request.save()
+
+        leave_balance.pending_for_approval_leaves -= leave_request.leave_days
+        leave_balance.applied_leave += leave_request.leave_days
+        leave_balance.balance_leaves -= leave_request.leave_days
+        leave_balance.save()
+
+        return redirect('aps_manager:view_leave_requests')
+
+    return render(request, 'components/manager/approve_leave.html', {'leave_request': leave_request})
+
+@login_required
+@user_passes_test(is_admin)  # Admin can view all leave requests
+def view_leave_requests_admin(request):
+    """Admin view to see all leave requests"""
+    leave_requests = LeaveRequest.objects.all()
+    return render(request, 'components/admin/view_leave_requests.html', {'leave_requests': leave_requests})
+
+@login_required
+@user_passes_test(is_hr)  # HR can view all leave requests
+def view_leave_requests_hr(request):
+    """HR view to see all leave requests"""
+    leave_requests = LeaveRequest.objects.all()
+    return render(request, 'components/hr_manager/view_leave_requests.html', {'leave_requests': leave_requests})
+
+@login_required
+@user_passes_test(is_manager)  # Manager can view only their team's leave requests
+def view_leave_requests_manager(request):
+    """Manager view to see team leave requests"""
+    leave_requests = LeaveRequest.objects.filter(emp_id__manager=request.user)
+    return render(request, 'components/manager/view_leave_requests.html', {'leave_requests': leave_requests})
+
+@login_required
+@user_passes_test(is_employee)
+def view_leave_balance_employee(request):
+    """Employee can view their own leave balance"""
+    leave_balance = LeaveBalance.objects.get(emp_id=request.user)
+    return render(request, 'aps/employee/view_leave_balance.html', {'leave_balance': leave_balance})

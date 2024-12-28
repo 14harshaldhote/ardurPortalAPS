@@ -13,6 +13,10 @@ admin_patterns = [
     path('report/projects_report/', views.projects_report, name='projects_report'),
     path('report/system_errors/', views.system_errors, name='system_errors'),
     path('report/system_usage/', views.system_usage, name='system_usage'),
+
+    # Leave-related URLs for Admin
+    path('view_leave_requests/', views.view_leave_requests_admin, name='view_leave_requests'),  # View all leave requests
+    path('approve_leave/<int:leave_id>/', views.approve_leave, name='approve_leave'),  # Admin approves leave
 ]
 
 # Employee-specific URLs under 'portal/employee/'
@@ -23,15 +27,23 @@ employee_patterns = [
     path('it_support/create_ticket/', views.create_ticket, name='create_ticket'),
     path('it_support/change_password/', views.change_password, name='change_password'),
     path('timesheet/', views.timesheet_view, name='timesheet'),
+
+    # Leave-related URLs for Employee
     path('leave_request/', views.leave_request_view, name='leave_request'),  # For employee leave requests
-    path('view_leave_balance/', views.view_leave_balance, name='view_leave_balance'),  # For viewing leave balance
+    path('view_leave_balance/', views.view_leave_balance_employee, name='view_leave_balance'),  # For viewing leave balance
 ]
 
 # HR/Manager-specific URLs under 'portal/hr_manager/'
 hr_manager_patterns = [
     # HR and Manager-related views
-    path('approve_leave/<int:leave_id>/', views.approve_leave, name='approve_leave'),  # For approving leave requests
-    path('view_leave_requests/', views.view_leave_requests, name='view_leave_requests'),  # For viewing all leave requests
+    path('approve_leave/<int:leave_id>/', views.approve_leave_hr, name='approve_leave'),  # For HR to approve leave
+    path('view_leave_requests/', views.view_leave_requests_hr, name='view_leave_requests'),  # For HR to view all leave requests
+]
+
+manager_patterns = [
+    # Manager-specific leave views
+    path('approve_leave/<int:leave_id>/', views.approve_leave_manager, name='approve_leave'),  # For manager to approve leave
+    path('view_leave_requests/', views.view_leave_requests_manager, name='view_leave_requests'),  # For manager to view leave requests for their team
 ]
 
 urlpatterns = [
@@ -51,5 +63,8 @@ urlpatterns = [
     path('portal/employee/', include((employee_patterns, 'aps'), namespace='aps_employee')),  # Employee URLs
 
     # HR/Manager-specific URLs under 'portal/hr_manager/'
-    path('portal/hr_manager/', include((hr_manager_patterns, 'aps'), namespace='aps_hr_manager')),  # HR/Manager URLs
+    path('portal/hr_manager/', include((hr_manager_patterns, 'aps'), namespace='aps_hr_manager')),  # HR URLs
+
+    # Manager-specific URLs under 'portal/manager/'
+    path('portal/manager/', include((manager_patterns, 'aps'), namespace='aps_manager')),  # Manager URLs
 ]

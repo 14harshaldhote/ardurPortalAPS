@@ -11,11 +11,12 @@
             </a>
         </li>
         <li>
-            <a
+            <a href="{% url 'home' %}"
                 class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
                 Profile
             </a>
         </li>
+
         <!-- Employee Specific -->
         {% if is_employee %}
         <li>
@@ -24,7 +25,6 @@
                 IT Support
             </a>
         </li>
-       
         <li>
             <a href="{% url 'aps_employee:attendance' %}"
                 class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
@@ -38,30 +38,29 @@
             </a>
         </li>
         <li>
-            <a href="#"
+            <a href="{% url 'aps_employee:leave_request' %}"
                 class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
                 Leave Request
             </a>
         </li>
+        <li>
+            <a href="{% url 'aps_employee:view_leave_balance' %}"
+                class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
+                Leave Balance
+            </a>
+        </li>
         {% endif %}
-
 
         <!-- HR Specific -->
         {% if is_hr %}
         <li>
-            <a
+            <a href="{% url 'aps_hr_manager:view_leave_requests' %}"
                 class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
-                Employee Profiles
+                View Leave Requests
             </a>
         </li>
         <li>
-            <a
-                class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
-                Track Leaves
-            </a>
-        </li>
-        <li>
-            <a
+            <a href="{% url 'aps_hr_manager:update_employee_info' %}"
                 class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
                 Update Employee Info
             </a>
@@ -71,19 +70,19 @@
         <!-- Manager Specific -->
         {% if is_manager %}
         <li>
-            <a
+            <a href="{% url 'aps_manager:assign_tasks' %}"
                 class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
                 Assign Tasks
             </a>
         </li>
         <li>
-            <a
+            <a href="{% url 'aps_manager:approve_leave' %}"
                 class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
                 Approve Leaves
             </a>
         </li>
         <li>
-            <a
+            <a href="{% url 'aps_manager:employee_attendance' %}"
                 class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
                 Employee Attendance
             </a>
@@ -94,19 +93,19 @@
         {% if is_admin %}
         <li>
             <a href="{% url 'aps_admin:user_sessions' %}"
-                class="block py-3 px-4 rounded-lg transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
+                class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
                 User Sessions
             </a>
         </li>
         <li>
             <a href="{% url 'aps_admin:it_support_admin' %}"
-                class="block py-3 px-4 rounded-lg transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
+                class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
                 IT Support
             </a>
         </li>
         <li>
             <a href="{% url 'aps_admin:report' %}"
-                class="block py-3 px-4 rounded-lg transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
+                class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
                 Report
             </a>
         </li>
@@ -114,13 +113,7 @@
 
         <!-- Common Navigation for All Roles -->
         <li>
-            <a
-                class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
-                IT Support
-            </a>
-        </li>
-        <li>
-            <a
+            <a href=""
                 class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
                 Chat Room
             </a>
