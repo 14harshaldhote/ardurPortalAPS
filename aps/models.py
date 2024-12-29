@@ -124,7 +124,11 @@ class Employee(models.Model):
     def __str__(self):
         """Return a string representation of the employee."""
         return f"{self.user.username} - {', '.join([group.name for group in self.user.groups.all()])}"
+    
 
+
+
+''' ------------------------------------------- PROJECT AREA ------------------------------------------- '''
 
 # Project model to store project-related information
 class Project(models.Model):
@@ -149,7 +153,7 @@ class ProjectAssignment(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)  # The user being assigned to the project
     assigned_date = models.DateField(auto_now_add=True)  # Date of assignment
     hours_worked = models.FloatField(default=0.0)  # Total hours worked by the user on the project
-    role_in_project = models.CharField(max_length=50, choices=[('Manager', 'Manager'), ('Developer', 'Developer'), ('Support', 'Support'), ('Tester', 'Tester')])  # Role of the user in the project
+    role_in_project = models.CharField(max_length=50, choices=[('Manager', 'Manager'), ('Developer', 'Developer'), ('Support', 'Support'), ('Apprisal', 'Apprisal'), ('Tester', 'Tester')])  # Role of the user in the project
 
     def __str__(self):
         """Return a string representation of the project assignment."""
@@ -158,6 +162,9 @@ class ProjectAssignment(models.Model):
     def get_total_hours(self):
         """Calculate total hours worked by a user on a project."""
         return self.hours_worked
+
+
+''' ------------------------------------------- PERSONAL AREA ------------------------------------------- '''
 
 
 # FailedLoginAttempt model to track failed login attempts

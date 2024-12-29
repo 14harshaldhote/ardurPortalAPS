@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+
+{% block content %}
+  <div class="container mx-auto p-4">
+    <h2 class="text-xl font-semibold mb-4">Manage Projects</h2>
+
+    <!-- Horizontal Navigation Bar -->
+    <div class="mb-6">
+      <nav class="flex space-x-4">
+        <button class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600" onclick="showSection('add_project')">Add Project</button>
+        <button class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600" onclick="showSection('assign_manager')">Assign Manager</button>
+        <button class="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600" onclick="showSection('assign_employee')">Assign Employee</button>
+        <button class="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600" onclick="showSection('view_projects')">View Projects</button> <!-- Added "View Projects" button -->
+      </nav>
+    </div>
+
+    <!-- Sections -->
+    <div id="add_project" class="section" style="display:none;">
+      {% include 'components/admin/project/add_project.html' %}
+    </div>
+    <div id="assign_manager" class="section" style="display:none;">
+      {% include 'components/admin/project/assign_manager.html' %}
+    </div>
+    <div id="assign_employee" class="section" style="display:none;">
+      {% include 'components/admin/project/assign_employee.html' %}
+    </div>
+    <div id="view_projects" class="section" style="display:none;">
+      {% include 'components/admin/project/all_projects.html' %}
+    </div>
+  </div>
+
+  <script>
+    function showSection(section) {
+      // Hide all sections
+      const sections = document.querySelectorAll('.section');
+      sections.forEach(s => s.style.display = 'none');
+
+      // Show the selected section
+      document.getElementById(section).style.display = 'block';
+    }
+
+    // Optionally, you can set the default section to show when the page loads
+    window.onload = function() {
+      showSection('view_projects'); // Default to "View Projects" section on load
+    }
+  </script>
+{% endblock %}

@@ -1,0 +1,17 @@
+<!-- assign_manager.html -->
+<div id="assign_manager" class="section" style="display:none;">
+    <h3 class="text-lg font-semibold mb-4">Assign Manager to Project: {{ project.name }}</h3>
+    <form method="POST">
+      {% csrf_token %}
+      <div class="mb-4">
+        <label for="manager" class="block text-sm font-medium text-gray-700">Select Manager</label>
+        <select name="manager" class="w-full rounded-md border-gray-300 shadow-sm">
+          {% for manager in available_managers %}
+            <option value="{{ manager.username }}">{{ manager.username }}</option>
+          {% endfor %}
+        </select>
+      </div>
+  
+      <button type="submit" class="px-6 py-2 bg-green-500 text-white rounded-lg">Assign Manager</button>
+    </form>
+</div>

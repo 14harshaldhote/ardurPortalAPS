@@ -3,7 +3,7 @@ from django.contrib.auth.models import User, Group
 from .models import (UserSession, ITSupportTicket, Attendance, SystemError, 
                     UserComplaint, FailedLoginAttempt, PasswordChange, 
                     RoleAssignmentAudit, FeatureUsage, SystemUsage, 
-                    Timesheet, LeaveRequest, LeaveBalance)
+                    Timesheet, LeaveRequest, LeaveBalance, Project, ProjectAssignment)
 from django.db.models import Q
 from datetime import datetime, timedelta, date
 from django.utils import timezone
@@ -12,6 +12,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required, user_passes_test
 from .helpers import is_user_in_group
+import json
 
 
 ''' ------------------ ROLE-BASED CHECKS ------------------ '''
@@ -472,6 +473,7 @@ def attendance_view(request):
 
 
 ''' ---------------------------------------- TIMESHEET AREA ---------------------------------------- '''
+
 @login_required
 def timesheet_view(request):
     if request.method == "POST":
@@ -514,6 +516,29 @@ def timesheet_view(request):
         timesheet_history = Timesheet.objects.filter(user=request.user).order_by('-week_start_date')
 
         return render(request, 'components/employee/timesheet.html', {'today': today, 'timesheet_history': timesheet_history})
+
+@login_required
+def manager_view_timesheets(request):
+    if not request.user.groups.filter(name='Manager').exists():
+        messages.error(request, "You do not have permission to view this page.")
+        return redirect('aps:dashboard')
+
+    # Fetch all timesheets for managers to review
+    timesheets = Timesheet.objects.all().order_by('-week_start_date')
+
+    # Calculate summary metrics
+    total_hours = sum(ts.hours for ts in timesheets)
+    active_projects = len(set(ts.project_name for ts in timesheets))
+    completion_rate = 85  # Placeholder - implement actual calculation
+
+    # Pass the timesheet data as a list of dictionaries (no need for JSON)
+    context = {
+        'timesheets': timesheets,
+        'total_hours': total_hours,
+        'active_projects': active_projects,
+        'completion_rate': completion_rate,
+    }
+    return render(request, 'components/manager/view_timesheets.html', context)
 
 
 ''' ---------------------------------------- LEAVE AREA ---------------------------------------- '''
@@ -650,3 +675,148 @@ def view_leave_balance_employee(request):
     """Employee can view their own leave balance"""
     leave_balance = LeaveBalance.objects.get(emp_id=request.user)
     return render(request, 'aps/employee/view_leave_balance.html', {'leave_balance': leave_balance})
+
+
+
+
+''' ------------------------------------------- PROJECT AREA ------------------------------------------- '''
+
+
+
+@login_required
+@user_passes_test(is_admin)
+def project_management(request):
+    return render(request, 'components/admin/projects.html')
+
+@login_required
+@user_passes_test(is_admin)  # You can adjust this if other roles should access this view
+def project_view(request, project_id=None):
+    """View for managing a project (creating, editing, viewing)."""
+    
+    if project_id:
+        project = get_object_or_404(Project, id=project_id)
+    else:
+        project = None  # If no project_id is provided, it means we are creating a new project
+    
+    return render(request, 'components/admin/project/view_project.html', {'project': project})
+# Admin can create new project
+@login_required
+@user_passes_test(is_admin)
+def add_project(request):
+    """View for adding a new project."""
+    
+    # Define the form directly in the view
+    class ProjectForm(forms.ModelForm):
+        class Meta:
+            model = Project
+            fields = ['name', 'description', 'deadline', 'status']
+
+    if request.method == 'POST':
+        form = ProjectForm(request.POST)
+        if form.is_valid():
+            project = form.save()
+            return redirect('view_project', project_id=project.id)  # Redirect to the project details page
+    else:
+        form = ProjectForm()
+
+    return render(request, 'components/admin/project/add_project.html', {'form': form})
+
+# Admin or Manager can assign a manager to a project
+@login_required
+@user_passes_test(is_admin)
+def assign_manager(request, project_id):
+    """View for assigning a manager to a project."""
+    project = get_object_or_404(Project, id=project_id)
+    if request.method == 'POST':
+        manager_username = request.POST.get('manager')
+        manager = get_object_or_404(User, username=manager_username)
+        assignment = ProjectAssignment.objects.create(project=project, user=manager, role_in_project='Manager')
+        return redirect('view_project', project_id=project.id)
+
+    # Get a list of users that can be assigned as manager
+    available_managers = User.objects.filter(groups__name="Manager")
+    return render(request, 'components/admin/project/assign_manager.html', {'project': project, 'available_managers': available_managers})
+
+# Admin or Manager can assign employees to a project
+@login_required
+@user_passes_test(lambda user: user.groups.filter(name__in=['Admin', 'Manager']).exists())
+def assign_employee(request, project_id):
+    """View for assigning an employee to a project."""
+    project = get_object_or_404(Project, id=project_id)
+    
+    # Define the form directly in the view
+    class ProjectAssignmentForm(forms.ModelForm):
+        class Meta:
+            model = ProjectAssignment
+            fields = ['user', 'role_in_project']
+
+    if request.method == 'POST':
+        form = ProjectAssignmentForm(request.POST)
+        if form.is_valid():
+            employee = form.cleaned_data['user']
+            role = form.cleaned_data['role_in_project']
+            ProjectAssignment.objects.create(project=project, user=employee, role_in_project=role)
+            return redirect('view_project', project_id=project.id)
+    else:
+        form = ProjectAssignmentForm()
+
+    # Get a list of users that can be assigned as employees
+    available_employees = User.objects.filter(groups__name="Employee")
+    return render(request, 'components/admin/project/assign_employee.html', {'project': project, 'form': form, 'available_employees': available_employees})
+
+# Employees log their worked hours on a project
+@login_required
+@user_passes_test(lambda user: user.groups.filter(name__in=['Admin', 'Manager', 'Employee']).exists())
+def log_hours(request, project_assignment_id):
+    """View for employees to log hours worked on a project."""
+    assignment = get_object_or_404(ProjectAssignment, id=project_assignment_id)
+    if request.method == 'POST':
+        hours_worked = request.POST.get('hours_worked')
+        assignment.hours_worked += float(hours_worked)
+        assignment.save()
+        return redirect('view_project', project_id=assignment.project.id)
+
+    return render(request, 'components/admin/project/log_hours.html', {'assignment': assignment})
+
+# Admin and Manager can view project details including overdue status
+@login_required
+@user_passes_test(lambda user: user.groups.filter(name__in=['Admin', 'Manager']).exists())
+def view_project(request, project_id):
+    """View for viewing the project details, including overdue status."""
+    project = get_object_or_404(Project, id=project_id)
+    overdue = project.is_overdue()  # Check if the project is overdue
+    assignments = ProjectAssignment.objects.filter(project=project)
+    return render(request, 'components/admin/project/view_project.html', {'project': project, 'overdue': overdue, 'assignments': assignments})
+
+# Admin and Manager can view all projects and their status
+@login_required
+@user_passes_test(lambda user: user.groups.filter(name__in=['Admin', 'Manager']).exists())
+def all_projects(request):
+    """View to list all projects with their status."""
+    projects = Project.objects.all()
+    return render(request, 'components/admin/project/all_projects.html', {'projects': projects})
+
+
+
+
+'''----- Temeporray views -----'''
+
+# Assign Tasks View
+@login_required
+def assign_tasks(request):
+    # Placeholder context data
+    context = {
+        'title': 'Assign Tasks',
+        'tasks': [],  # Example data (you can replace this with actual task data)
+    }
+    return render(request, 'components/manager/assign_tasks.html', context)
+
+# Approve Leaves View
+@login_required
+def approve_leave(request):
+    # Placeholder context data
+    context = {
+        'title': 'Approve Leaves',
+        'leave_requests': [],  # Example data (you can replace this with actual leave request data)
+    }
+    return render(request, 'components/manager/approve_leave.html', context)

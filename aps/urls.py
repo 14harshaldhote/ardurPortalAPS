@@ -17,6 +17,15 @@ admin_patterns = [
     # Leave-related URLs for Admin
     path('view_leave_requests/', views.view_leave_requests_admin, name='view_leave_requests'),  # View all leave requests
     path('approve_leave/<int:leave_id>/', views.approve_leave, name='approve_leave'),  # Admin approves leave
+
+    # Project management URLs for Admin
+    # Admin-related views
+    path('projects/', views.project_management, name='project_management'),
+    path('project/<int:project_id>/', views.view_project, name='view_project'),
+    path('project_add/', views.project_view, name='add_project'),
+    path('project/<int:project_id>/assign_manager/', views.assign_manager, name='assign_manager'),
+    path('project/<int:project_id>/assign_employee/', views.assign_employee, name='assign_employee'),
+
 ]
 
 # Employee-specific URLs under 'portal/employee/'
@@ -43,7 +52,9 @@ hr_manager_patterns = [
 manager_patterns = [
     # Manager-specific leave views
     path('approve_leave/<int:leave_id>/', views.approve_leave_manager, name='approve_leave'),  # For manager to approve leave
-    path('view_leave_requests/', views.view_leave_requests_manager, name='view_leave_requests'),  # For manager to view leave requests for their team
+    path('view_leave_requests/', views.view_leave_requests_manager, name='view_leave_requests'),
+    path('view_timesheets/', views.manager_view_timesheets, name='view_timesheets'),  # For manager to view leave requests for their team
+    path('assign_tasks/', views.assign_tasks, name='assign_tasks'),  # For manager to assign tasks to employees
 ]
 
 urlpatterns = [

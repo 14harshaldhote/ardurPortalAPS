@@ -1,0 +1,28 @@
+<!-- add_project.html -->
+<div id="add_project" class="section">
+    <h3 class="text-lg font-semibold mb-4">Add New Project</h3>
+    <form method="POST">
+      {% csrf_token %}
+      <div class="mb-4">
+        <label for="id_name" class="block text-sm font-medium text-gray-700">Project Name</label>
+        {{ form.name }}
+      </div>
+  
+      <div class="mb-4">
+        <label for="id_description" class="block text-sm font-medium text-gray-700">Project Description</label>
+        {{ form.description }}
+      </div>
+  
+      <div class="mb-4">
+        <label for="id_deadline" class="block text-sm font-medium text-gray-700">Project Deadline</label>
+        {{ form.deadline }}
+      </div>
+  
+      <div class="mb-4">
+        <label for="id_status" class="block text-sm font-medium text-gray-700">Project Status</label>
+        {{ form.status }}
+      </div>
+  
+      <button type="submit" class="px-6 py-2 bg-blue-500 text-white rounded-lg">Save Project</button>
+    </form>
+</div>
