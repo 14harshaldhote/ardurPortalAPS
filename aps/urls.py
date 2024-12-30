@@ -43,15 +43,15 @@ employee_patterns = [
     path('view_leave_balance/', views.view_leave_balance_employee, name='view_leave_balance'),  # For viewing leave balance
 ]
 
-# HR/Manager-specific URLs under 'portal/hr_manager/'
-hr_manager_patterns = [
+# HR specific URLs under 'portal/hr/'
+hr_patterns = [
     # HR and Manager-related views
     path('approve_leave/<int:leave_id>/', views.approve_leave_hr, name='approve_leave'),  # For HR to approve leave
     path('view_leave_requests/', views.view_leave_requests_hr, name='view_leave_requests'),  # For HR to view all leave requests
 
     # Attendance-related URLs for HR
     path('attendance/', views.hr_attendance_view, name='attendance'),  # HR attendance view
-]
+   ]   
 
 manager_patterns = [
     # Manager-specific leave views
@@ -81,7 +81,7 @@ urlpatterns = [
     path('portal/employee/', include((employee_patterns, 'aps'), namespace='aps_employee')),  # Employee URLs
 
     # HR/Manager-specific URLs under 'portal/hr_manager/'
-    path('portal/hr_manager/', include((hr_manager_patterns, 'aps'), namespace='aps_hr_manager')),  # HR URLs
+    path('portal/hr/', include((hr_patterns, 'aps'), namespace='aps_hr')),  # HR URLs
 
     # Manager-specific URLs under 'portal/manager/'
     path('portal/manager/', include((manager_patterns, 'aps'), namespace='aps_manager')),  # Manager URLs

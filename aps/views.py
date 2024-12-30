@@ -827,35 +827,141 @@ def manager_attendance_view(request):
 
     return render(request, 'components/manager/manager_attendance.html', {'team_attendance': team_records})
 
+from django.shortcuts import render
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from .models import Attendance
+
+from django.http import HttpResponse
+from django.template.loader import render_to_string
+import csv
+import openpyxl
 @login_required
 @user_passes_test(is_hr)
 def hr_attendance_view(request):
-    # Using select_related for user data optimization
-    all_attendance = Attendance.objects.all().select_related('user').order_by('-date')
-    
-    # Pagination setup
+    # Optimized query using select_related
+    all_attendance = Attendance.objects.select_related('user').order_by('-date')
+
+    # Filters
+    username_filter = request.GET.get('username', '')
+    status_filter = request.GET.get('status', '')
+    date_filter = request.GET.get('date', '')
+
+    if username_filter:
+        all_attendance = all_attendance.filter(user__username__icontains=username_filter)
+    if status_filter:
+        all_attendance = all_attendance.filter(status=status_filter)
+    if date_filter:
+        all_attendance = all_attendance.filter(date=date_filter)
+
+    # Handle export requests before pagination
+    export_type = request.GET.get('export')
+    if export_type == 'csv':
+        return export_attendance_csv(all_attendance)
+    elif export_type == 'excel':
+        return export_attendance_excel(all_attendance)
+
+    # Pagination
     paginator = Paginator(all_attendance, 10)
-    page = request.GET.get('page')
-    
+    page = request.GET.get('page', 1)
     try:
         all_records = paginator.get_page(page)
-    except EmptyPage:
-        all_records = paginator.page(paginator.num_pages)
-    except PageNotAnInteger:
+    except (PageNotAnInteger, EmptyPage):
         all_records = paginator.page(1)
 
-    return render(request, 'components/hr/hr_admin_attendance.html', {'all_attendance': all_records})
+    # Attendance summary counts
+    present_count = all_attendance.filter(status='Present').count()
+    absent_count = all_attendance.filter(status='Absent').count()
+    leave_count = all_attendance.filter(status='On Leave').count()
+
+    return render(request, 'components/hr/hr_admin_attendance.html', {
+        'summary': all_records,
+        'username_filter': username_filter,
+        'status_filter': status_filter,
+        'date_filter': date_filter,
+        'present_count': present_count,
+        'absent_count': absent_count,
+        'leave_count': leave_count,
+    })
+
+def export_attendance_csv(queryset):
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="attendance.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow(['Employee', 'Username', 'Status', 'Date'])
+
+    # Fetching required fields only
+    records = queryset.values(
+        'user__first_name', 'user__last_name', 'user__username', 'status', 'date'
+    )
+    for record in records:
+        writer.writerow([
+            f"{record['user__first_name']} {record['user__last_name']}",
+            record['user__username'],
+            record['status'],
+            record['date'].strftime('%Y-%m-%d'),
+        ])
+    return response
+
+
+def export_attendance_excel(queryset):
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = 'attachment; filename="attendance.xlsx"'
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Attendance"
+    ws.append(['Employee', 'Username', 'Status', 'Date'])
+
+    # Fetching required fields only
+    records = queryset.values(
+        'user__first_name', 'user__last_name', 'user__username', 'status', 'date'
+    )
+    for record in records:
+        ws.append([
+            f"{record['user__first_name']} {record['user__last_name']}",
+            record['user__username'],
+            record['status'],
+            record['date'].strftime('%Y-%m-%d'),
+        ])
+    wb.save(response)
+    return response
+
 
 @login_required
 @user_passes_test(is_admin)
 def admin_attendance_view(request):
-    # Optimized query for attendance summary
-    attendance_summary = Attendance.objects.values('user', 'status', 'date').order_by('-date')
-    
+    # Get filter values from GET parameters
+    username_filter = request.GET.get('username', '')
+    status_filter = request.GET.get('status', '')
+    date_filter = request.GET.get('date', '')
+
+    # Filter the attendance summary based on the filters
+    attendance_summary = Attendance.objects.all()
+
+    if username_filter:
+        attendance_summary = attendance_summary.filter(user__username__icontains=username_filter)
+
+    if status_filter:
+        attendance_summary = attendance_summary.filter(status=status_filter)
+
+    if date_filter:
+        try:
+            date_obj = datetime.strptime(date_filter, '%Y-%m-%d').date()
+            attendance_summary = attendance_summary.filter(date=date_obj)
+        except ValueError:
+            pass  # If the date format is incorrect, it will be ignored
+
+    # Optimized query with selected fields
+    attendance_summary = attendance_summary.values(
+        'user', 'user__first_name', 'user__last_name', 'user__username', 'status', 'date'
+    ).order_by('-date')
+
     # Pagination setup
     paginator = Paginator(attendance_summary, 10)
     page = request.GET.get('page', 1)
-    
+
     try:
         summary_records = paginator.get_page(page)
     except EmptyPage:
@@ -863,7 +969,12 @@ def admin_attendance_view(request):
     except PageNotAnInteger:
         summary_records = paginator.page(1)
 
-    return render(request, 'components/admin/hr_admin_attendance.html', {'summary': summary_records})
+    return render(request, 'components/admin/hr_admin_attendance.html', {
+        'summary': summary_records,
+        'username_filter': username_filter,
+        'status_filter': status_filter,
+        'date_filter': date_filter
+    })
 
 '''----- Temeporray views -----'''
 

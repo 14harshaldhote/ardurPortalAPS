@@ -54,15 +54,21 @@
         <!-- HR Specific -->
         {% if is_hr %}
         <li>
-            <a href="{% url 'aps_hr_manager:view_leave_requests' %}"
+            <a href="#"
                 class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
                 View Leave Requests
             </a>
         </li>
         <li>
-            <a href="{% url 'aps_hr_manager:update_employee_info' %}"
+            <a href="#"
                 class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
                 Update Employee Info
+            </a>
+        </li>
+        <li>
+            <a href="{% url 'aps_hr:attendance' %}"
+                class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
+                Attendance Records
             </a>
         </li>
         {% endif %}
@@ -119,6 +125,12 @@
             <a href="{% url 'aps_admin:project_management' %}"
                class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
                 Projects
+            </a>
+        </li>
+        <li>
+            <a href="{% url 'aps_admin:attendance' %}"
+                class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
+                Admin Attendance
             </a>
         </li>
         {% endif %}
