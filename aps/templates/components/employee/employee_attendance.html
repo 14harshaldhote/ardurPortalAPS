@@ -76,7 +76,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 title: '{{ attendance.status }}',
                 start: '{{ attendance.date }}',
                 backgroundColor: getStatusColor('{{ attendance.status }}'),
-                borderColor: getStatusColor('{{ attendance.status }}')
+                borderColor: getStatusColor('{{ attendance.status }}'),
+                extendedProps: {
+                    status: '{{ attendance.status }}'
+                }
             },
             {% endfor %}
         ],
@@ -86,6 +89,10 @@ document.addEventListener('DOMContentLoaded', function () {
         datesSet: function(info) {
             // Update the month name when the view changes
             monthNameEl.textContent = info.view.title;
+        },
+        eventRender: function(info) {
+            var status = info.event.extendedProps.status;
+            info.el.style.backgroundColor = getStatusColor(status);
         }
     });
     

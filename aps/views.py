@@ -12,6 +12,8 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required, user_passes_test
 from .helpers import is_user_in_group
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+
 import json
 
 
@@ -448,29 +450,6 @@ def change_password(request):
         return redirect('it_support_home')
     return render(request, 'components/employee/change_password.html')
 # Attendance View
-@login_required
-def attendance_view(request):
-    # Check if the user is in either Employee or Manager group
-    if request.user.groups.filter(name='Employee').exists() or request.user.groups.filter(name='Manager').exists():
-        # Get the user's attendance data
-        user_attendance = Attendance.objects.filter(user=request.user)
-        total_present = user_attendance.filter(status='Present').count()
-        total_absent = user_attendance.filter(status='Absent').count()
-        total_leave = user_attendance.filter(status='On Leave').count()
-        total_wfh = user_attendance.filter(status='Work From Home').count()
-
-        return render(request, 'components/employee/attendance.html', {
-            'total_present': total_present,
-            'total_absent': total_absent,
-            'total_leave': total_leave,
-            'total_wfh': total_wfh,
-            'user_attendance': user_attendance
-        })
-
-    else:
-        messages.error(request, "You do not have permission to access this page.")
-        return redirect('home')  # Redirect to home page if the user is not authorized
-
 
 ''' ---------------------------------------- TIMESHEET AREA ---------------------------------------- '''
 
@@ -796,8 +775,95 @@ def all_projects(request):
     projects = Project.objects.all()
     return render(request, 'components/admin/project/all_projects.html', {'projects': projects})
 
+''' ------------------------------------------- ATTENDACE AREA ------------------------------------------- '''
 
+# Views with optimized database queries
+@login_required
+def employee_attendance_view(request):
+    # Get the user's attendance data
+    user_attendance = Attendance.objects.filter(user=request.user).order_by('-date')
+    
+    # Pagination setup (show 10 records per page)
+    paginator = Paginator(user_attendance, 10)
+    page = request.GET.get('page')
+    
+    try:
+        records = paginator.get_page(page)
+    except EmptyPage:
+        records = paginator.page(paginator.num_pages)
+    except PageNotAnInteger:
+        records = paginator.page(1)
 
+    # Attendance statistics
+    total_present = user_attendance.filter(status='Present').count()
+    total_absent = user_attendance.filter(status='Absent').count()
+    total_leave = user_attendance.filter(status='On Leave').count()
+    total_wfh = user_attendance.filter(status='Work From Home').count()
+
+    return render(request, 'components/employee/employee_attendance.html', {
+        'total_present': total_present,
+        'total_absent': total_absent,
+        'total_leave': total_leave,
+        'total_wfh': total_wfh,
+        'records': records
+    })
+
+@login_required
+@user_passes_test(is_manager)
+def manager_attendance_view(request):
+    # Prefetching related user manager data for efficiency
+    team_attendance = Attendance.objects.filter(user__manager=request.user).select_related('user').order_by('-date')
+    
+    # Pagination setup
+    paginator = Paginator(team_attendance, 10)
+    page = request.GET.get('page')
+    
+    try:
+        team_records = paginator.get_page(page)
+    except EmptyPage:
+        team_records = paginator.page(paginator.num_pages)
+    except PageNotAnInteger:
+        team_records = paginator.page(1)
+
+    return render(request, 'components/manager/manager_attendance.html', {'team_attendance': team_records})
+
+@login_required
+@user_passes_test(is_hr)
+def hr_attendance_view(request):
+    # Using select_related for user data optimization
+    all_attendance = Attendance.objects.all().select_related('user').order_by('-date')
+    
+    # Pagination setup
+    paginator = Paginator(all_attendance, 10)
+    page = request.GET.get('page')
+    
+    try:
+        all_records = paginator.get_page(page)
+    except EmptyPage:
+        all_records = paginator.page(paginator.num_pages)
+    except PageNotAnInteger:
+        all_records = paginator.page(1)
+
+    return render(request, 'components/hr/hr_admin_attendance.html', {'all_attendance': all_records})
+
+@login_required
+@user_passes_test(is_admin)
+def admin_attendance_view(request):
+    # Optimized query for attendance summary
+    attendance_summary = Attendance.objects.values('user', 'status', 'date').order_by('-date')
+    
+    # Pagination setup
+    paginator = Paginator(attendance_summary, 10)
+    page = request.GET.get('page', 1)
+    
+    try:
+        summary_records = paginator.get_page(page)
+    except EmptyPage:
+        summary_records = paginator.page(paginator.num_pages)
+    except PageNotAnInteger:
+        summary_records = paginator.page(1)
+
+    return render(request, 'components/admin/hr_admin_attendance.html', {'summary': summary_records})
 
 '''----- Temeporray views -----'''
 
@@ -820,3 +886,6 @@ def approve_leave(request):
         'leave_requests': [],  # Example data (you can replace this with actual leave request data)
     }
     return render(request, 'components/manager/approve_leave.html', context)
+
+
+

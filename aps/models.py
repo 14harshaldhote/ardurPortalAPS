@@ -3,60 +3,66 @@ from django.contrib.auth.models import User
 import pytz
 from django.db import models
 from django.utils.timezone import now
+from datetime import timedelta
 
+from django.db import models
+from django.utils import timezone
+from datetime import timedelta
+
+from django.utils import timezone
+from datetime import timedelta
+
+from django.db import models
+from django.contrib.auth.models import User
+from django.utils import timezone
+from datetime import timedelta
 
 # User session model to track login, logout, working hours, and idle time
+from django.db import models
+from django.contrib.auth.models import User
+from django.utils import timezone
+import pytz
+
+IST_TIMEZONE = pytz.timezone('Asia/Kolkata')
+
 class UserSession(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)  # Reference to the User model
-    login_time = models.DateTimeField(default=timezone.now)  # Timestamp of user login
-    logout_time = models.DateTimeField(null=True, blank=True)  # Timestamp of user logout
-    session_key = models.CharField(max_length=40)  # Session key to uniquely identify sessions
-    working_hours = models.DurationField(null=True, blank=True)  # Total working hours during session
-    idle_time = models.DurationField(null=True, blank=True)  # Idle time when no activity is detected
-    last_activity = models.DateTimeField(null=True, blank=True)  # Timestamp of last activity
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    session_key = models.CharField(max_length=40, unique=True)
+    login_time = models.DateTimeField(default=timezone.now)
+    logout_time = models.DateTimeField(null=True, blank=True)
+    working_hours = models.DurationField(null=True, blank=True)
+    idle_time = models.DurationField(null=True, blank=True)
+    last_activity = models.DateTimeField(null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        """Override save method to ensure times are timezone-aware and calculate working/idle hours."""
+        print(f"Saving UserSession for user: {self.user.username}, session_key: {self.session_key}")
+        
         # Ensure login_time and logout_time are timezone-aware
         if self.login_time and not timezone.is_aware(self.login_time):
-            self.login_time = timezone.make_aware(self.login_time, timezone.get_current_timezone())
-
+            self.login_time = timezone.make_aware(self.login_time, IST_TIMEZONE)
+        
         if self.logout_time and not timezone.is_aware(self.logout_time):
-            self.logout_time = timezone.make_aware(self.logout_time, timezone.get_current_timezone())
-
-        # Calculate working hours if logout_time is provided
-        if self.logout_time and not self.working_hours:
+            self.logout_time = timezone.make_aware(self.logout_time, IST_TIMEZONE)
+        
+        if self.logout_time:
             self.calculate_working_hours()
 
-        # Calculate idle time if last_activity and logout_time are available
         if self.last_activity and self.logout_time:
             self.calculate_idle_time()
 
         super().save(*args, **kwargs)
 
-    def get_login_time_in_ist(self):
-        """Convert login_time to IST (Indian Standard Time)."""
-        india_tz = pytz.timezone('Asia/Kolkata')
-        if self.login_time:
-            return timezone.localtime(self.login_time, india_tz)
-        return None
-
-    def get_logout_time_in_ist(self):
-        """Convert logout_time to IST (Indian Standard Time)."""
-        india_tz = pytz.timezone('Asia/Kolkata')
-        if self.logout_time:
-            return timezone.localtime(self.logout_time, india_tz)
-        return None
-
     def calculate_working_hours(self):
-        """Calculate working hours from login_time and logout_time."""
+        print(f"Calculating working hours for session: {self.session_key}")
+        """Calculate working hours based on login_time and logout_time."""
         if self.logout_time:
             self.working_hours = self.logout_time - self.login_time
 
     def calculate_idle_time(self):
-        """Calculate idle time during the session if last_activity and logout_time are available."""
+        print(f"Calculating idle time for session: {self.session_key}")
+        """Calculate idle time based on last_activity and logout_time."""
         if self.last_activity and self.logout_time:
-            active_threshold = timezone.timedelta(minutes=5)  # Consider idle after 5 min of inactivity
+            active_threshold = timezone.timedelta(minutes=5)
             time_since_last_activity = self.logout_time - self.last_activity
             if time_since_last_activity > active_threshold:
                 self.idle_time = time_since_last_activity - active_threshold
@@ -64,9 +70,82 @@ class UserSession(models.Model):
                 self.idle_time = timezone.timedelta(0)
 
     def update_activity(self):
-        """Update the last activity timestamp."""
+        print(f"Updating last activity for session: {self.session_key}")
+        """Update last_activity to the current time."""
         self.last_activity = timezone.now()
         self.save(update_fields=['last_activity'])
+
+'''---------- ATTENDANCE AREA ----------'''
+
+class Attendance(models.Model):
+    STATUS_CHOICES = [
+        ('Present', 'Present'),
+        ('Absent', 'Absent'), 
+        ('Pending', 'Pending'),
+        ('On Leave', 'On Leave'),
+        ('Work From Home', 'Work From Home'),
+    ]
+
+    user = models.ForeignKey('auth.User', on_delete=models.CASCADE)
+    date = models.DateField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
+    clock_in_time = models.DateTimeField(null=True, blank=True)
+    clock_out_time = models.DateTimeField(null=True, blank=True)
+    total_hours = models.DurationField(null=True, blank=True)
+
+    def calculate_attendance(self):
+        print(f"Calculating attendance for user: {self.user.username}, date: {self.date}")
+        
+        try:
+            # If we already have clock in time and it's not from a session calculation
+            if self.clock_in_time and self.status == 'Present':
+                print(f"Using existing clock in time for {self.user.username}")
+                return
+
+            # Get UserSessions for the user on the given date
+            user_sessions = UserSession.objects.filter(
+                user=self.user,
+                login_time__date=self.date
+            ).order_by('login_time')
+
+            print(f"Found {user_sessions.count()} session(s) for user {self.user.username} on {self.date}")
+
+            if user_sessions.exists():
+                first_session = user_sessions.first()
+                last_session = user_sessions.last()
+
+                # Only update if we don't already have clock in time
+                if not self.clock_in_time and first_session.login_time:
+                    self.clock_in_time = first_session.login_time
+                    self.status = 'Present'
+
+                # Update clock out and total hours if we have a logout time
+                if last_session.logout_time:
+                    self.clock_out_time = last_session.logout_time
+                    if self.clock_in_time:
+                        self.total_hours = last_session.logout_time - self.clock_in_time
+
+            # Don't override status if it's already Present
+            elif self.status != 'Present':
+                self.status = 'Pending'
+                if not self.clock_in_time:  # Only clear if not manually set
+                    self.clock_in_time = None
+                    self.clock_out_time = None
+                    self.total_hours = None
+
+        except Exception as e:
+            print(f"Error calculating attendance: {e}")
+            if self.status != 'Present':  # Don't override if already Present
+                self.status = 'Pending'
+
+    def save(self, *args, **kwargs):
+        print(f"Saving attendance for user: {self.user.username}, date: {self.date}")
+        self.calculate_attendance()
+        super().save(*args, **kwargs)
+        print(f"Attendance saved for user: {self.user.username}, date: {self.date}, "
+              f"status: {self.status}, clock-in: {self.clock_in_time}, "
+              f"clock-out: {self.clock_out_time}, total hours: {self.total_hours}")
+
 
 
 # IT Support Ticket model to track and manage IT support requests
@@ -249,22 +328,6 @@ class UserComplaint(models.Model):
 ''' ----------------- EMPLOYEE AREA ----------------- '''
 
 
-
-class Attendance(models.Model):
-    STATUS_CHOICES = [
-        ('Present', 'Present'),
-        ('Absent', 'Absent'),
-        ('On Leave', 'On Leave'),
-        ('Work From Home', 'Work From Home'),
-    ]
-    
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    date = models.DateField()
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES)
-    
-    def __str__(self):
-        return f"{self.user.username} - {self.date} - {self.status}"
-    
 
 
 class Timesheet(models.Model):
