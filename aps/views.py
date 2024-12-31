@@ -3,7 +3,8 @@ from django.contrib.auth.models import User, Group
 from .models import (UserSession, ITSupportTicket, Attendance, SystemError, 
                     UserComplaint, FailedLoginAttempt, PasswordChange, 
                     RoleAssignmentAudit, FeatureUsage, SystemUsage, 
-                    Timesheet, LeaveRequest, LeaveBalance, Project, ProjectAssignment)
+                    Timesheet, LeaveRequest, LeaveBalance, Project, ProjectAssignment,
+                    Message, Chat)
 from django.db.models import Q
 from datetime import datetime, timedelta, date
 from django.utils import timezone
@@ -13,7 +14,6 @@ from django.contrib.auth import authenticate, login, logout, update_session_auth
 from django.contrib.auth.decorators import login_required, user_passes_test
 from .helpers import is_user_in_group
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
-
 import json
 
 
@@ -975,6 +975,134 @@ def admin_attendance_view(request):
         'status_filter': status_filter,
         'date_filter': date_filter
     })
+
+
+'''--------------------------- CHAT AREA------------------------'''
+# views.py
+from django.shortcuts import render
+from django.http import JsonResponse
+from django.contrib.auth.decorators import login_required
+from django.db import DatabaseError
+from .models import User, Chat, Message, UserSession
+from django.utils import timezone
+
+@login_required
+def chat_view(request):
+    try:
+        # Fetch users except the logged-in user
+        users = User.objects.exclude(id=request.user.id)
+
+        # Fetch the online status for each user
+        users_status = [
+            {
+                'username': user.username,
+                'status': get_user_status(user)
+            }
+            for user in users
+        ]
+    except DatabaseError as e:
+        return JsonResponse({"error": f"Database error: {str(e)}"}, status=500)
+
+    return render(request, 'components/chat/chat.html', {
+        'users_status': users_status
+    })
+
+@login_required
+def load_messages(request, recipient_username):
+    try:
+        recipient = User.objects.get(username=recipient_username)
+    except User.DoesNotExist:
+        return JsonResponse({"error": "User not found"}, status=404)
+    except DatabaseError as e:
+        return JsonResponse({"error": f"Database error: {str(e)}"}, status=500)
+
+    try:
+        # Get the chat between the logged-in user and the recipient
+        chat = Chat.objects.filter(
+            participants=request.user
+        ).filter(
+            participants=recipient
+        ).first()
+
+        if not chat:
+            return JsonResponse({"error": "No chat found with the user"}, status=404)
+
+        # Get all messages from the chat
+        messages = Message.objects.filter(chat=chat).order_by('timestamp')
+
+        message_list = [{
+            'sender': message.sender.username,
+            'content': message.content,
+            'timestamp': message.timestamp,
+        } for message in messages]
+
+        return JsonResponse(message_list, safe=False)
+    except DatabaseError as e:
+        return JsonResponse({"error": f"Database error: {str(e)}"}, status=500)
+    except Exception as e:
+        return JsonResponse({"error": f"Unexpected error: {str(e)}"}, status=500)
+
+@login_required
+def send_message(request):
+    if request.method == 'POST':
+        recipient_username = request.POST.get('recipient')
+        content = request.POST.get('message')
+
+        if not recipient_username or not content:
+            return JsonResponse({"error": "Invalid data, recipient or message missing"}, status=400)
+
+        try:
+            recipient = User.objects.get(username=recipient_username)
+        except User.DoesNotExist:
+            return JsonResponse({"error": "User not found"}, status=404)
+        except DatabaseError as e:
+            return JsonResponse({"error": f"Database error: {str(e)}"}, status=500)
+
+        try:
+            # Create or get the chat between the logged-in user and the recipient
+            chat = Chat.objects.filter(
+                participants=request.user
+            ).filter(
+                participants=recipient
+            ).first()
+
+            if not chat:
+                chat = Chat.objects.create()
+
+            # Add participants if not already added
+            chat.participants.add(request.user, recipient)
+
+            # Create the new message
+            message = Message.objects.create(
+                chat=chat,
+                sender=request.user,
+                recipient=recipient,
+                content=content,
+            )
+
+            return JsonResponse({
+                'sender': message.sender.username,
+                'content': message.content,
+                'timestamp': message.timestamp,
+            })
+
+        except DatabaseError as e:
+            return JsonResponse({"error": f"Database error: {str(e)}"}, status=500)
+        except Exception as e:
+            return JsonResponse({"error": f"Unexpected error: {str(e)}"}, status=500)
+
+    return JsonResponse({"error": "Invalid request method, expected POST"}, status=400)
+
+def get_user_status(user):
+    """Function to get the online/offline status of a user"""
+    # Get the latest session of the user
+    user_session = UserSession.objects.filter(user=user).last()
+
+    if user_session and user_session.logout_time is None:
+        return 'Online'
+    else:
+        return 'Offline'
+
 
 '''----- Temeporray views -----'''
 

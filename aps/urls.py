@@ -1,5 +1,11 @@
 from django.urls import path, include
 from . import views
+from django.urls import re_path
+from . import consumers
+
+websocket_urlpatterns = [
+    path('ws/chat/', consumers.ChatConsumer.as_asgi(), name='chat_ws'),
+]
 
 # Admin-specific URLs under 'portal/admin/'
 admin_patterns = [
@@ -71,6 +77,12 @@ urlpatterns = [
     path('logout/', views.logout_view, name='logout'),
     path('set_password/<str:username>/', views.set_password_view, name='set_password'),
 
+    
+    path('chats/', views.chat_view, name='chat_view'),
+    path('messages/<str:recipient_username>/', views.load_messages, name='load_messages'),
+    path('send_message/', views.send_message, name='send_message'),
+
+    # path('chats/<int:chat_id>/send/', views.chat_view, name='send-message'),
     # Dashboard view
     path('dashboard/', views.dashboard_view, name='dashboard'),
 
