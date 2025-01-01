@@ -153,14 +153,49 @@ def set_password_view(request, username):
 
 
 
+'''---------------------------------   DASHBOARD VIEW ----------------------------------'''
+from django.shortcuts import render
+from .models import Attendance
+
+# Function to get attendance stats
+def get_attendance_stats(user):
+    # Calculate total days, present days, and absent days
+    total_days = Attendance.objects.filter(user=user).count()
+    present_days = Attendance.objects.filter(user=user, status="Present").count()
+    absent_days = Attendance.objects.filter(user=user, status="Absent").count()
+
+    # Calculate attendance percentage
+    attendance_percentage = round((present_days / total_days) * 100, 2) if total_days > 0 else 0
+
+    # Calculate attendance change (e.g., compare with previous period)
+    previous_attendance = Attendance.objects.filter(user=user, date__lt=user.date_joined).last()
+    attendance_change = attendance_percentage - (previous_attendance.percentage if previous_attendance else 0)
+
+    return {
+        'attendance_percentage': attendance_percentage,
+        'attendance_change': attendance_change,
+        'total_present': present_days,
+        'total_absent': absent_days,
+        'change_display': abs(attendance_change) if attendance_change < 0 else attendance_change
+    }
+
+# Main dashboard view
 @login_required
 def dashboard_view(request):
-    try:
-        return render(request, 'dashboard.html')
+    user = request.user
 
-    except Exception as e:
-        # Handle errors by passing the error message to the template
-        return render(request, 'dashboard.html', {'error': f'An error occurred: {str(e)}'})
+    # Get data for the attendance card
+    attendance_data = get_attendance_stats(user)
+
+    # Context for the dashboard view (other cards' data can be added here)
+    context = {
+        'attendance': attendance_data,
+        # Add other cards' data as needed
+    }
+
+    return render(request, 'dashboard.html', context)
+
+
 
 ''' --------------------------------------------------------- ADMIN AREA --------------------------------------------------------- '''
 # Helper function to check if the user belongs to the Admin group
