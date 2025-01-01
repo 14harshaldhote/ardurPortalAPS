@@ -231,6 +231,7 @@ class Project(models.Model):
     deadline = models.DateField()  # Deadline for the project
     status = models.CharField(max_length=20, choices=[('Completed', 'Completed'), ('In Progress', 'In Progress'), ('Pending', 'Pending')])  # Status of the project
     created_at = models.DateTimeField(auto_now_add=True)  # Time when the project was created
+    updated_at = models.DateTimeField(auto_now=True)  # Time when the project was last updated
 
     def __str__(self):
         """Return the project name."""
@@ -239,6 +240,14 @@ class Project(models.Model):
     def is_overdue(self):
         """Check if the project is overdue based on the deadline."""
         return self.deadline < timezone.now().date() and self.status != 'Completed'
+
+    def remaining_days(self):
+        """Calculate the number of days left until the deadline."""
+        return (self.deadline - timezone.now().date()).days
+
+    def is_completed(self):
+        """Check if the project has been marked as completed."""
+        return self.status == 'Completed'
 
 
 # ProjectAssignment model to assign users to projects
@@ -256,6 +265,13 @@ class ProjectAssignment(models.Model):
     def get_total_hours(self):
         """Calculate total hours worked by a user on a project."""
         return self.hours_worked
+
+    def update_hours(self, hours):
+        """Method to update hours worked for the project assignment."""
+        if hours < 0:
+            raise ValueError("Hours worked cannot be negative")
+        self.hours_worked += hours
+        self.save()
 
 
 ''' ------------------------------------------- PERSONAL AREA ------------------------------------------- '''
