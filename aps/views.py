@@ -749,31 +749,31 @@ def view_leave_balance_employee(request):
 
 ''' ------------------------------------------- PROJECT AREA ------------------------------------------- '''
 
+# Helper function to check if the user is an admin
+def is_admin(user):
+    return user.groups.filter(name='Admin').exists()
 
-
+# Project management dashboard (Admin only)
 @login_required
 @user_passes_test(is_admin)
 def project_management(request):
     return render(request, 'components/admin/projects.html')
 
+# View for managing a project (creating, editing, viewing)
 @login_required
-@user_passes_test(is_admin)  # You can adjust this if other roles should access this view
+@user_passes_test(is_admin)
 def project_view(request, project_id=None):
-    """View for managing a project (creating, editing, viewing)."""
-    
     if project_id:
         project = get_object_or_404(Project, id=project_id)
     else:
-        project = None  # If no project_id is provided, it means we are creating a new project
-    
+        project = None
     return render(request, 'components/admin/project/view_project.html', {'project': project})
-# Admin can create new project
+
+# Admin can create a new project
 @login_required
 @user_passes_test(is_admin)
 def add_project(request):
     """View for adding a new project."""
-    
-    # Define the form directly in the view
     class ProjectForm(forms.ModelForm):
         class Meta:
             model = Project
@@ -783,25 +783,23 @@ def add_project(request):
         form = ProjectForm(request.POST)
         if form.is_valid():
             project = form.save()
-            return redirect('view_project', project_id=project.id)  # Redirect to the project details page
+            return redirect('view_project', project_id=project.id)
     else:
         form = ProjectForm()
 
     return render(request, 'components/admin/project/add_project.html', {'form': form})
 
-# Admin or Manager can assign a manager to a project
+# Admin can assign a manager to a project
 @login_required
 @user_passes_test(is_admin)
 def assign_manager(request, project_id):
-    """View for assigning a manager to a project."""
     project = get_object_or_404(Project, id=project_id)
     if request.method == 'POST':
-        manager_username = request.POST.get('manager')
-        manager = get_object_or_404(User, username=manager_username)
+        manager_id = request.POST.get('manager')
+        manager = get_object_or_404(User, id=manager_id)
         assignment = ProjectAssignment.objects.create(project=project, user=manager, role_in_project='Manager')
         return redirect('view_project', project_id=project.id)
 
-    # Get a list of users that can be assigned as manager
     available_managers = User.objects.filter(groups__name="Manager")
     return render(request, 'components/admin/project/assign_manager.html', {'project': project, 'available_managers': available_managers})
 
@@ -809,10 +807,8 @@ def assign_manager(request, project_id):
 @login_required
 @user_passes_test(lambda user: user.groups.filter(name__in=['Admin', 'Manager']).exists())
 def assign_employee(request, project_id):
-    """View for assigning an employee to a project."""
     project = get_object_or_404(Project, id=project_id)
-    
-    # Define the form directly in the view
+
     class ProjectAssignmentForm(forms.ModelForm):
         class Meta:
             model = ProjectAssignment
@@ -828,7 +824,6 @@ def assign_employee(request, project_id):
     else:
         form = ProjectAssignmentForm()
 
-    # Get a list of users that can be assigned as employees
     available_employees = User.objects.filter(groups__name="Employee")
     return render(request, 'components/admin/project/assign_employee.html', {'project': project, 'form': form, 'available_employees': available_employees})
 
@@ -836,23 +831,26 @@ def assign_employee(request, project_id):
 @login_required
 @user_passes_test(lambda user: user.groups.filter(name__in=['Admin', 'Manager', 'Employee']).exists())
 def log_hours(request, project_assignment_id):
-    """View for employees to log hours worked on a project."""
     assignment = get_object_or_404(ProjectAssignment, id=project_assignment_id)
     if request.method == 'POST':
-        hours_worked = request.POST.get('hours_worked')
-        assignment.hours_worked += float(hours_worked)
-        assignment.save()
-        return redirect('view_project', project_id=assignment.project.id)
+        try:
+            hours_worked = float(request.POST.get('hours_worked'))
+            if hours_worked <= 0:
+                raise ValueError("Hours worked must be a positive number.")
+            assignment.update_hours(hours_worked)
+            return redirect('view_project', project_id=assignment.project.id)
+        except (ValueError, TypeError):
+            # Handle the error (e.g., show a message to the user)
+            pass
 
     return render(request, 'components/admin/project/log_hours.html', {'assignment': assignment})
 
-# Admin and Manager can view project details including overdue status
+# Admin and Manager can view project details, including overdue status
 @login_required
 @user_passes_test(lambda user: user.groups.filter(name__in=['Admin', 'Manager']).exists())
 def view_project(request, project_id):
-    """View for viewing the project details, including overdue status."""
     project = get_object_or_404(Project, id=project_id)
-    overdue = project.is_overdue()  # Check if the project is overdue
+    overdue = project.is_overdue()
     assignments = ProjectAssignment.objects.filter(project=project)
     return render(request, 'components/admin/project/view_project.html', {'project': project, 'overdue': overdue, 'assignments': assignments})
 
@@ -860,9 +858,10 @@ def view_project(request, project_id):
 @login_required
 @user_passes_test(lambda user: user.groups.filter(name__in=['Admin', 'Manager']).exists())
 def all_projects(request):
-    """View to list all projects with their status."""
     projects = Project.objects.all()
     return render(request, 'components/admin/project/all_projects.html', {'projects': projects})
+
+
 
 ''' ------------------------------------------- ATTENDACE AREA ------------------------------------------- '''
 
