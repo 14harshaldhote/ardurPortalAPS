@@ -34,6 +34,17 @@ class UserSession(models.Model):
     idle_time = models.DurationField(null=True, blank=True)
     last_activity = models.DateTimeField(null=True, blank=True)
 
+
+    def get_login_time_in_ist(self):
+        if self.login_time:
+            return timezone.localtime(self.login_time)
+        return None
+
+    def get_logout_time_in_ist(self):
+        if self.logout_time:
+            return timezone.localtime(self.logout_time)
+        return None
+
     def save(self, *args, **kwargs):
         print(f"Saving UserSession for user: {self.user.username}, session_key: {self.session_key}")
         

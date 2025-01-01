@@ -229,6 +229,7 @@ def system_errors(request):
 def system_usage(request):
     return render(request, 'components/admin/reports/system_usage.html')
 
+'''' -------------- usersession ---------------'''
 
 @login_required
 @user_passes_test(is_admin)
@@ -273,11 +274,20 @@ def user_sessions_view(request):
 
         # Query the filtered sessions
         sessions = UserSession.objects.filter(filters).order_by('-login_time')
+
+        # Convert login_time and logout_time to IST
+        for session in sessions:
+            if session.login_time:
+                session.login_time_ist = timezone.localtime(session.login_time)  # Convert to IST
+            if session.logout_time:
+                session.logout_time_ist = timezone.localtime(session.logout_time)  # Convert to IST
+
         return render(request, 'components/admin/user_sessions.html', {'sessions': sessions})
 
     except Exception as e:
         messages.error(request, f"An error occurred: {str(e)}")
         return redirect('dashboard')
+
 
 
 @login_required
