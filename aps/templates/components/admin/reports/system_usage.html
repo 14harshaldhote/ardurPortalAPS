@@ -1,17 +1,10 @@
-{% extends 'components/admin/reports/report.html' %}
-
-{% block report_content %}
-<!-- Content for System Usage -->
 <section class="mb-8 bg-white rounded-xl shadow-sm">
     <div class="p-8">
         <h2 class="text-2xl font-semibold text-gray-800">System Usage</h2>
-        <!-- Add your system usage content here -->
+        <p class="text-gray-600 mt-2">Track overall system usage, including performance metrics and user activity.</p>
+        <!-- Add usage graphs, statistics, or performance metrics -->
+        <div class="mt-4">
+            <p class="text-gray-600">Coming soon...</p>
+        </div>
     </div>
 </section>
-{% endblock %}
-
-{% block content %}
-    {% with section='system_usage' %}
-        {{ super() }}
-    {% endwith %}
-{% endblock %}

@@ -205,29 +205,128 @@ def is_admin(user):
     return user.groups.filter(id=admin_group_id).exists()
 
 
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.db.models import Q
+from django.utils import timezone
+from django.contrib import messages
+from datetime import datetime, timedelta
+
+# Helper function to check if the user is an admin
+def is_admin(user):
+    return user.is_authenticated and user.is_staff
+
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.shortcuts import render
+
+def is_admin(user):
+    """Check if the user has admin privileges."""
+    return user.groups.filter(name='Admin').exists()
+
 @login_required  # Ensure the user is logged in
 @user_passes_test(is_admin)  # Ensure the user is an admin
 def report_view(request):
+    """Main report navigation view."""
+    # Navigation items for the report dashboard
     nav_items = [
-        {'id': 'featureusage', 'name': 'Feature Usage', 'icon': 'fas fa-chart-line'},
-        {'id': 'projects', 'name': 'Projects', 'icon': 'fas fa-project-diagram'},
-        {'id': 'systemerrors', 'name': 'System Errors', 'icon': 'fas fa-exclamation-triangle'},
-        {'id': 'systemusage', 'name': 'System Usage', 'icon': 'fas fa-desktop'},
+        {
+            'id': 'featureusage', 
+            'name': 'Feature Usage', 
+            'icon': 'fas fa-chart-line',
+            'description': 'Insights into how features are being used.',
+        },
+        {
+            'id': 'projects', 
+            'name': 'Projects', 
+            'icon': 'fas fa-project-diagram',
+            'description': 'Detailed overview of ongoing and completed projects.',
+        },
+        {
+            'id': 'systemerrors', 
+            'name': 'System Errors', 
+            'icon': 'fas fa-exclamation-triangle',
+            'description': 'Log and analyze system errors.',
+        },
+        {
+            'id': 'systemusage', 
+            'name': 'System Usage', 
+            'icon': 'fas fa-desktop',
+            'description': 'Track system performance metrics and user activity.',
+        },
     ]
-    return render(request, 'components/admin/report.html', {'nav_items': nav_items})
+    
+    # Additional sections for the report dashboard
+    sections = [
+        {
+            "title": "Feature Usage",
+            "description": "This section provides insights into how features are being used within the platform.",
+            "content": "Coming soon...",
+        },
+        {
+            "title": "Projects Report",
+            "description": "Detailed overview of all ongoing and completed projects.",
+            "content": "Coming soon...",
+        },
+        {
+            "title": "System Errors",
+            "description": "Log and analyze system errors to ensure smooth platform performance.",
+            "content": "Coming soon...",
+        },
+        {
+            "title": "System Usage",
+            "description": "Track overall system usage, including performance metrics and user activity.",
+            "content": "Coming soon...",
+        },
+    ]
+    
+    return render(request, 'components/admin/report.html', {'nav_items': nav_items, 'sections': sections})
+
+# View for Feature Usage Information
+
+@login_required
+@user_passes_test(is_admin)
+def feature_usage_view(request):
+    """View to display feature usage details."""
+    try:
+        feature_usages = FeatureUsage.objects.all().order_by('-usage_count')
+        return render(request, 'components/admin/reports/feature_usage.html', {'feature_usages': feature_usages})
+
+    except Exception as e:
+        messages.error(request, f"An error occurred while fetching feature usage data: {str(e)}")
+        return redirect('dashboard')
 
 
-def feature_usage(request):
-    return render(request, 'components/admin/reports/feature_usage.html')
-
-def projects_report(request):
+@login_required
+@user_passes_test(is_admin)
+def projects_report_view(request):
+    """View to display projects report."""
     return render(request, 'components/admin/reports/projects_report.html')
 
-def system_errors(request):
-    return render(request, 'components/admin/reports/system_errors.html')
 
-def system_usage(request):
-    return render(request, 'components/admin/reports/system_usage.html')
+@login_required
+@user_passes_test(is_admin)
+def system_error_view(request):
+    """View to display system errors."""
+    try:
+        system_errors = SystemError.objects.all().order_by('-error_time')
+        return render(request, 'components/admin/reports/system_error.html', {'system_errors': system_errors})
+
+    except Exception as e:
+        messages.error(request, f"An error occurred while fetching system errors: {str(e)}")
+        return redirect('dashboard')
+
+
+@login_required
+@user_passes_test(is_admin)
+def system_usage_view(request):
+    """View to display system usage details."""
+    try:
+        system_usages = SystemUsage.objects.all().order_by('-peak_time_start')
+        return render(request, 'components/admin/reports/system_usage.html', {'system_usages': system_usages})
+
+    except Exception as e:
+        messages.error(request, f"An error occurred while fetching system usage data: {str(e)}")
+        return redirect('dashboard')
 
 '''' -------------- usersession ---------------'''
 
@@ -367,61 +466,6 @@ def system_usage_view(request):
         messages.error(request, f"An error occurred while fetching system usage data: {str(e)}")
         return redirect('dashboard')
 
-
-# View for Feature Usage Information
-@login_required
-@user_passes_test(is_admin)
-def feature_usage_view(request):
-    """View to display feature usage details."""
-    try:
-        feature_usages = FeatureUsage.objects.all().order_by('-usage_count')
-        return render(request, 'components/admin/feature_usage.html', {'feature_usages': feature_usages})
-
-    except Exception as e:
-        messages.error(request, f"An error occurred while fetching feature usage data: {str(e)}")
-        return redirect('dashboard')
-
-
-# View for System Errors
-@login_required
-@user_passes_test(is_admin)
-def system_error_view(request):
-    """View to display system errors."""
-    try:
-        system_errors = SystemError.objects.all().order_by('-error_time')
-        return render(request, 'components/admin/system_error.html', {'system_errors': system_errors})
-
-    except Exception as e:
-        messages.error(request, f"An error occurred while fetching system errors: {str(e)}")
-        return redirect('dashboard')
-
-
-# View for User Complaints
-@login_required
-@user_passes_test(is_admin)
-def user_complaint_view(request):
-    """View to display user complaints."""
-    try:
-        user_complaints = UserComplaint.objects.all().order_by('-complaint_date')
-        return render(request, 'components/admin/user_complaint.html', {'user_complaints': user_complaints})
-
-    except Exception as e:
-        messages.error(request, f"An error occurred while fetching user complaints: {str(e)}")
-        return redirect('dashboard')
-
-
-# View for Failed Login Attempts
-@login_required
-@user_passes_test(is_admin)
-def failed_login_view(request):
-    """View to display failed login attempts."""
-    try:
-        failed_logins = FailedLoginAttempt.objects.all().order_by('-attempt_time')
-        return render(request, 'components/admin/failed_login.html', {'failed_logins': failed_logins})
-
-    except Exception as e:
-        messages.error(request, f"An error occurred while fetching failed login attempts: {str(e)}")
-        return redirect('dashboard')
 
 
 # View for Password Changes

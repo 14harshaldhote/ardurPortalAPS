@@ -14,12 +14,11 @@ admin_patterns = [
     path('it_support_admin/', views.it_support_admin, name='it_support_admin'),
     path('ticket/<int:ticket_id>/', views.ticket_detail, name='ticket_detail'),
     path('ticket/update/<int:ticket_id>/', views.update_ticket, name='update_ticket'),
-    path('report/', views.report_view, name='report'),  # Admin report page
-    path('report/feature_usage/', views.feature_usage, name='feature_usage'),
-    path('report/projects_report/', views.projects_report, name='projects_report'),
-    path('report/system_errors/', views.system_errors, name='system_errors'),
-    path('report/system_usage/', views.system_usage, name='system_usage'),
-
+    path('report/', views.report_view, name='report'),
+    path('reports/feature_usage/', views.feature_usage_view, name='feature_usage'),
+    path('reports/projects_report/', views.projects_report_view, name='projects_report'),
+    path('reports/system_errors/', views.system_error_view, name='system_errors'),
+    path('reports/system_usage/', views.system_usage_view, name='system_usage'),
     # Leave-related URLs for Admin
     path('view_leave_requests/', views.view_leave_requests_admin, name='view_leave_requests'),  # View all leave requests
     path('approve_leave/<int:leave_id>/', views.approve_leave, name='approve_leave'),  # Admin approves leave
