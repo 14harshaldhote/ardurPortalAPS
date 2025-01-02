@@ -38,24 +38,11 @@
             </a>
         </li>
         <li class="relative">
-            <a href="#" 
+            <a href="{% url 'aps_employee:leave_view' %}" 
                 class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
                 Leave
             </a>
-            <ul class="absolute left-0 hidden mt-2 space-y-2 bg-white border rounded-lg shadow-lg group-hover:block">
-                <li>
-                    <a href="{% url 'aps_employee:leave_request' %}"
-                        class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
-                        Leave Request
-                    </a>
-                </li>
-                <li>
-                    <a href="{% url 'aps_employee:view_leave_balance' %}"
-                        class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
-                        Leave Balance
-                    </a>
-                </li>
-            </ul>
+            
         </li>
         
         {% endif %}
@@ -63,7 +50,7 @@
         <!-- HR Specific -->
         {% if is_hr %}
         <li>
-            <a href="#"
+            <a href="{% url 'aps_hr:view_leave_requests_hr' %}"
                 class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
                 View Leave Requests
             </a>
@@ -91,7 +78,7 @@
             </a>
         </li>
         <li>
-            <a href="#"
+            <a href="{% url 'aps_manager:approve_leave' %}"
                 class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
                 Approve Leaves
             </a>
@@ -122,6 +109,12 @@
             <a href="{% url 'aps_admin:it_support_admin' %}"
                 class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
                 IT Support
+            </a>
+        </li>
+        <li></li>
+            <a href="{% url 'aps_admin:view_leave_requests' %}"
+                class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
+                View All Leave Requests
             </a>
         </li>
         <li>
