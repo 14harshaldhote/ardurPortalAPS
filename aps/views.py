@@ -925,6 +925,8 @@ from django.http import HttpResponse
 from django.template.loader import render_to_string
 import csv
 import openpyxl
+from datetime import datetime, timedelta
+
 @login_required
 @user_passes_test(is_hr)
 def hr_attendance_view(request):
@@ -962,6 +964,25 @@ def hr_attendance_view(request):
     present_count = all_attendance.filter(status='Present').count()
     absent_count = all_attendance.filter(status='Absent').count()
     leave_count = all_attendance.filter(status='On Leave').count()
+
+    # Calculate working hours
+    for record in all_records:
+        clock_in_time = record.clock_in_time
+        clock_out_time = record.clock_out_time
+        if clock_in_time and clock_out_time:
+            # Convert time to datetime for calculation
+            today = datetime.today().date()
+            clock_in_datetime = datetime.combine(today, clock_in_time)
+            clock_out_datetime = datetime.combine(today, clock_out_time)
+            
+            # Calculate working hours
+            working_hours = clock_out_datetime - clock_in_datetime
+            # Format working hours in hours and minutes (hh:mm)
+            hours = working_hours.seconds // 3600
+            minutes = (working_hours.seconds % 3600) // 60
+            record.working_hours = f"{hours}h {minutes}m"  # Store as formatted string
+        else:
+            record.working_hours = None
 
     return render(request, 'components/hr/hr_admin_attendance.html', {
         'summary': all_records,

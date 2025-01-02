@@ -37,18 +37,27 @@
                 Time Sheet
             </a>
         </li>
-        <li>
-            <a href="{% url 'aps_employee:leave_request' %}"
+        <li class="relative">
+            <a href="#" 
                 class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
-                Leave Request
+                Leave
             </a>
+            <ul class="absolute left-0 hidden mt-2 space-y-2 bg-white border rounded-lg shadow-lg group-hover:block">
+                <li>
+                    <a href="{% url 'aps_employee:leave_request' %}"
+                        class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
+                        Leave Request
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'aps_employee:view_leave_balance' %}"
+                        class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
+                        Leave Balance
+                    </a>
+                </li>
+            </ul>
         </li>
-        <li>
-            <a href="{% url 'aps_employee:view_leave_balance' %}"
-                class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
-                Leave Balance
-            </a>
-        </li>
+        
         {% endif %}
 
         <!-- HR Specific -->

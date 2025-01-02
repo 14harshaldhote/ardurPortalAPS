@@ -2,6 +2,8 @@ from django.contrib.auth.signals import user_logged_in, user_logged_out
 from django.dispatch import receiver
 from django.utils import timezone
 from .models import UserSession, Attendance
+from datetime import datetime, time
+
 
 @receiver(user_logged_in)
 def track_login_time(sender, request, user, **kwargs):
@@ -55,6 +57,9 @@ def track_login_time(sender, request, user, **kwargs):
     except Exception as e:
         print(f"Error in track_login_time: {str(e)}")
 
+from django.utils import timezone
+from datetime import datetime, time
+
 @receiver(user_logged_out)
 def track_logout_time(sender, request, user, **kwargs):
     try:
@@ -87,15 +92,25 @@ def track_logout_time(sender, request, user, **kwargs):
         ).first()
 
         if attendance and attendance.clock_in_time:
+            # Ensure both clock_in_time and clock_out_time are datetime objects
+            if isinstance(attendance.clock_in_time, time):
+                # Combine the date and time to create a full datetime object
+                clock_in_time = datetime.combine(today, attendance.clock_in_time)
+                # Make it timezone-aware
+                clock_in_time = timezone.make_aware(clock_in_time, timezone.get_current_timezone())
+            else:
+                clock_in_time = attendance.clock_in_time
+
+            # Now calculate the total hours worked
             previous_time = attendance.total_hours if attendance.total_hours else "No previous hours"
             attendance.clock_out_time = local_now
             attendance.total_hours = timezone.timedelta(
-                seconds=(local_now - attendance.clock_in_time).total_seconds()
+                seconds=(local_now - clock_in_time).total_seconds()
             )
             attendance.save()
             print(f"Updated attendance record for user: {user.username}")
             print(f"Date: {today}")
-            print(f"Clock-in time: {attendance.clock_in_time}")
+            print(f"Clock-in time: {clock_in_time}")
             print(f"Clock-out time: {local_now}")
             print(f"Previous total hours: {previous_time}")
             print(f"New total hours: {attendance.total_hours}")
