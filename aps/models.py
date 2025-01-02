@@ -172,6 +172,7 @@ class Attendance(models.Model):
               f"status: {self.status}, clock-in: {self.clock_in_time}, "
               f"clock-out: {self.clock_out_time}, total hours: {self.total_hours}")
 
+'''---------- IT SUPPORT AREA ----------'''
 
 
 # IT Support Ticket model to track and manage IT support requests
