@@ -81,7 +81,12 @@ urlpatterns = [
     path('messages/<str:recipient_username>/', views.load_messages, name='load_messages'),
     path('send_message/', views.send_message, name='send_message'),
 
-    # path('chats/<int:chat_id>/send/', views.chat_view, name='send-message'),
+    path('break/start/<str:break_type>/', views.start_break, name='start_break'),
+    path('break/end/<int:break_id>/', views.end_break, name='end_break'),
+    path('break/submit-reason/<int:break_id>/', views.submit_reason, name='submit_break_reason'),
+
+    path('break_management/', views.break_management, name='break_management'),
+ # path('chats/<int:chat_id>/send/', views.chat_view, name='send-message'),
     # Dashboard view
     path('dashboard/', views.dashboard_view, name='dashboard'),
 

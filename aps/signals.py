@@ -3,6 +3,7 @@ from django.dispatch import receiver
 from django.utils import timezone
 from .models import UserSession, Attendance
 
+# Signal to track login time
 @receiver(user_logged_in)
 def track_login_time(sender, request, user, **kwargs):
     try:
@@ -35,26 +36,18 @@ def track_login_time(sender, request, user, **kwargs):
 
         if created:
             print(f"Created new attendance record for user: {user.username}")
-            print(f"Date: {today}")
-            print(f"Clock-in time: {local_now}")
-            print(f"Status: {attendance.status}")
         elif not attendance.clock_in_time:
             attendance.status = 'Present'
             attendance.clock_in_time = local_now
             attendance.save()
             print(f"Updated existing attendance record for user: {user.username}")
-            print(f"Date: {today}")
-            print(f"Updated clock-in time: {local_now}")
-            print(f"Updated status: {attendance.status}")
         else:
             print(f"Existing attendance record found for user: {user.username}")
-            print(f"Date: {today}")
-            print(f"Existing clock-in time: {attendance.clock_in_time}")
-            print(f"Current status: {attendance.status}")
 
     except Exception as e:
         print(f"Error in track_login_time: {str(e)}")
 
+# Signal to track logout time
 @receiver(user_logged_out)
 def track_logout_time(sender, request, user, **kwargs):
     try:
@@ -74,9 +67,6 @@ def track_logout_time(sender, request, user, **kwargs):
                 user_session.logout_time = local_now
                 user_session.save()
                 print(f"Updated session for user: {user.username}")
-                print(f"Session key: {session_key}")
-                print(f"Login time: {user_session.login_time}")
-                print(f"Logout time: {local_now}")
 
         # Update Attendance
         today = local_now.date()
@@ -94,12 +84,7 @@ def track_logout_time(sender, request, user, **kwargs):
             )
             attendance.save()
             print(f"Updated attendance record for user: {user.username}")
-            print(f"Date: {today}")
-            print(f"Clock-in time: {attendance.clock_in_time}")
-            print(f"Clock-out time: {local_now}")
-            print(f"Previous total hours: {previous_time}")
             print(f"New total hours: {attendance.total_hours}")
-            print(f"Status: {attendance.status}")
 
     except Exception as e:
         print(f"Error in track_logout_time: {str(e)}")

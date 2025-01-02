@@ -107,3 +107,12 @@ CHANNEL_LAYERS = {
 
 
 ASGI_APPLICATION = 'ardurprotal.asgi.application'
+
+
+# Celery Configuration
+# Celery Configuration
+CELERY_BROKER_URL = 'redis://localhost:6379/0'  # Use Redis for broker
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'  # Use Redis for result backend
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'Asia/Kolkata'  # Set your time zone to India

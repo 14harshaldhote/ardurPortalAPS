@@ -865,7 +865,24 @@ def all_projects(request):
 
 ''' ------------------------------------------- ATTENDACE AREA ------------------------------------------- '''
 
-# Views with optimized database queries
+# aps/views.py
+
+from django.http import JsonResponse, HttpResponse
+from aps.tasks import calculate_daily_attendance
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from .models import Attendance
+from django.template.loader import render_to_string
+import csv
+import openpyxl
+from datetime import datetime
+
+# Trigger Celery task for daily attendance calculation
+def trigger_attendance_calculation(request):
+    calculate_daily_attendance()  # Trigger the Celery task asynchronously
+    return JsonResponse({'message': 'Attendance calculation triggered.'})
+
+# Employee Attendance View
 @login_required
 def employee_attendance_view(request):
     # Get the user's attendance data
@@ -896,6 +913,7 @@ def employee_attendance_view(request):
         'records': records
     })
 
+# Manager Attendance View
 @login_required
 @user_passes_test(is_manager)
 def manager_attendance_view(request):
@@ -915,15 +933,7 @@ def manager_attendance_view(request):
 
     return render(request, 'components/manager/manager_attendance.html', {'team_attendance': team_records})
 
-from django.shortcuts import render
-from django.contrib.auth.decorators import login_required, user_passes_test
-from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
-from .models import Attendance
-
-from django.http import HttpResponse
-from django.template.loader import render_to_string
-import csv
-import openpyxl
+# HR Attendance View
 @login_required
 @user_passes_test(is_hr)
 def hr_attendance_view(request):
@@ -972,6 +982,7 @@ def hr_attendance_view(request):
         'leave_count': leave_count,
     })
 
+# Export attendance as CSV
 def export_attendance_csv(queryset):
     response = HttpResponse(content_type='text/csv')
     response['Content-Disposition'] = 'attachment; filename="attendance.csv"'
@@ -992,7 +1003,7 @@ def export_attendance_csv(queryset):
         ])
     return response
 
-
+# Export attendance as Excel
 def export_attendance_excel(queryset):
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     response['Content-Disposition'] = 'attachment; filename="attendance.xlsx"'
@@ -1016,7 +1027,7 @@ def export_attendance_excel(queryset):
     wb.save(response)
     return response
 
-
+# Admin Attendance View
 @login_required
 @user_passes_test(is_admin)
 def admin_attendance_view(request):
@@ -1216,3 +1227,129 @@ def approve_leave(request):
 
 
 
+
+'''-------------------------- BREAK AREA ---------------------------'''
+from django.http import JsonResponse
+from django.shortcuts import render
+from django.contrib.auth.decorators import login_required
+from django.utils.timezone import now
+from .models import Break
+from .context_processors import is_manager, is_employee, is_hr
+from datetime import timedelta
+from asgiref.sync import sync_to_async  # For async compatibility
+
+# Break Management View
+@login_required
+def break_management(request):
+    user = request.user
+    # Fetch active breaks (those not yet ended)
+    active_breaks = Break.objects.filter(employee=user, end_time__isnull=True).order_by('start_time')
+    print(f"Active breaks fetched: {active_breaks}")
+
+    # Define break durations for tea breaks and lunch/dinner break
+    break_durations = {
+        'tea1': timedelta(minutes=10),
+        'lunch_dinner': timedelta(minutes=30),
+        'tea2': timedelta(minutes=10),
+    }
+
+    break_data = []
+    for break_item in active_breaks:
+        remaining_time = break_durations.get(break_item.break_type) - (now() - break_item.start_time)
+        break_data.append({
+            'break_type': break_item.get_break_type_display(),
+            'start_time': break_item.start_time,
+            'remaining_time': remaining_time if remaining_time > timedelta() else timedelta(),
+            'break_id': break_item.id,
+        })
+    
+    print(f"Break data: {break_data}")  # Add this line to check if break_data is populated
+
+    return render(request, 'card/break_management.html', {'break_data': break_data})
+
+# Async Break Start Logic
+@sync_to_async
+def start_break_async(user, break_type):
+    active_breaks = Break.objects.filter(employee=user, end_time__isnull=True)
+    if active_breaks.exists():
+        last_break = active_breaks.order_by('start_time').last()
+        break_order = ['tea1', 'lunch_dinner', 'tea2']
+        current_break_index = break_order.index(last_break.break_type)
+        if break_order.index(break_type) != current_break_index + 1:
+            return JsonResponse({"error": "You must complete the previous break before starting the next one."}, status=400)
+
+    existing_break = Break.objects.filter(employee=user, break_type=break_type, end_time__isnull=True).first()
+    if existing_break:
+        return JsonResponse({"error": f"You already have an active {existing_break.get_break_type_display()}."}, status=400)
+
+    shift = 'day' if 6 <= now().hour < 18 else 'night'
+    new_break = Break.objects.create(employee=user, break_type=break_type, shift=shift, start_time=now())
+    return JsonResponse({"message": f"{new_break.get_break_type_display()} started successfully.", "break_id": new_break.id}, status=200)
+
+# Start Break View
+@login_required
+def start_break(request, break_type):
+    user = request.user
+
+    # Ensure user has permission
+    if not (is_manager(request)['is_manager'] or is_employee(request)['is_employee'] or is_hr(request)['is_hr']):
+        return JsonResponse({"error": "You do not have permission to start a break."}, status=403)
+
+    return start_break_async(user, break_type)
+
+# End Break View
+@login_required
+def end_break(request, break_id):
+    user = request.user
+
+    # Restrict access to Manager, HR, or Employee roles
+    if not (is_manager(request)['is_manager'] or is_employee(request)['is_employee'] or is_hr(request)['is_hr']):
+        return JsonResponse({"error": "You do not have permission to end a break."}, status=403)
+    
+    try:
+        active_break = Break.objects.get(id=break_id, employee=user, end_time__isnull=True)
+        
+        # End the break
+        active_break.end_time = now()
+
+        # Calculate if the break time exceeded its duration
+        break_duration = {
+            'tea1': timedelta(minutes=10),
+            'lunch_dinner': timedelta(minutes=30),
+            'tea2': timedelta(minutes=10),
+        }
+        
+        duration = active_break.end_time - active_break.start_time
+        excess_time = duration - break_duration.get(active_break.break_type, timedelta())
+        
+        # If the break time exceeds allowed duration, prompt for a reason
+        if excess_time > timedelta():
+            return JsonResponse({"message": f"Break exceeded by {excess_time}. Please provide a reason for the delay.", "break_id": break_id}, status=400)
+
+        # Save the end time
+        active_break.save()
+        return JsonResponse({"message": f"{active_break.get_break_type_display()} ended successfully.", "break_id": break_id}, status=200)
+    except Break.DoesNotExist:
+        return JsonResponse({"error": "No active break found to end."}, status=404)
+
+# Submit Reason for Delay View
+@login_required
+def submit_reason(request, break_id):
+    user = request.user
+    try:
+        active_break = Break.objects.get(id=break_id, employee=user, end_time__isnull=True)
+
+        # Get reason from the POST data
+        reason = request.POST.get('reason')
+
+        if not reason:
+            return JsonResponse({"error": "Please provide a reason."}, status=400)
+
+        # Store the reason in the database (assuming a reason field exists on Break model)
+        active_break.reason = reason
+        active_break.save()
+
+        return JsonResponse({"message": "Reason submitted successfully."}, status=200)
+
+    except Break.DoesNotExist:
+        return JsonResponse({"error": "No active break found."}, status=404)

@@ -101,12 +101,23 @@ class Attendance(models.Model):
         ('Work From Home', 'Work From Home'),
     ]
 
-    user = models.ForeignKey('auth.User', on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
     date = models.DateField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
     clock_in_time = models.DateTimeField(null=True, blank=True)
     clock_out_time = models.DateTimeField(null=True, blank=True)
     total_hours = models.DurationField(null=True, blank=True)
+    leave_request = models.ForeignKey(
+        'LeaveRequest', on_delete=models.SET_NULL, null=True, blank=True, 
+        related_name='attendances'
+    )
+
+    def calculate_total_hours(self):
+        """Calculate the total hours worked based on clock-in and clock-out times."""
+        if self.clock_in_time and self.clock_out_time:
+            self.total_hours = self.clock_out_time - self.clock_in_time
+            self.save()
+
 
     def calculate_attendance(self):
         print(f"Calculating attendance for user: {self.user.username}, date: {self.date}")
@@ -378,6 +389,9 @@ class Timesheet(models.Model):
 
 """ ------------------ LEAVE AREA ------------------ """
 
+from django.db import models
+from django.contrib.auth.models import User
+
 class LeaveRequest(models.Model):
     LEAVE_TYPES = [
         ('Sick Leave', 'Sick Leave'),
@@ -385,28 +399,58 @@ class LeaveRequest(models.Model):
         ('Earned Leave', 'Earned Leave'),
         ('Loss of Pay', 'Loss of Pay'),
     ]
-    emp_id = models.ForeignKey(User, on_delete=models.CASCADE)
+
+    STATUS_CHOICES = [
+        ('Pending', 'Pending'),
+        ('Approved', 'Approved'),
+        ('Rejected', 'Rejected'),
+    ]
+
+    user= models.ForeignKey(User, on_delete=models.CASCADE)
     leave_type = models.CharField(max_length=50, choices=LEAVE_TYPES)
     start_date = models.DateField()
     end_date = models.DateField()
     leave_days = models.IntegerField()
     reason = models.TextField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
+    approver = models.ForeignKey(
+        User, related_name='leave_approvals', on_delete=models.SET_NULL, null=True, blank=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"Leave Request by {self.emp_id.username} for {self.leave_type}"
 
+    def calculate_leave_days(self):
+        """Calculate leave days based on start and end dates."""
+        if self.start_date and self.end_date:
+            self.leave_days = (self.end_date - self.start_date).days + 1
+            self.save()
+
 class LeaveBalance(models.Model):
-    emp_id = models.OneToOneField(User, on_delete=models.CASCADE)
-    total_leave = models.IntegerField(default=20)
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    total_leave = models.IntegerField(default=18)
     consumed_leave = models.IntegerField(default=0)
     applied_leave = models.IntegerField(default=0)
-    balance_leaves = models.IntegerField(default=20)
+    balance_leaves = models.IntegerField(default=18)
     pending_for_approval_leaves = models.IntegerField(default=0)
     loss_of_pay_leaves = models.IntegerField(default=0)
     status = models.CharField(max_length=50, default='Open')
 
     def __str__(self):
         return f"Leave Balance for {self.emp_id.username}"
+
+    def update_balance(self):
+        """Update the balance based on consumed and pending leaves."""
+        self.balance_leaves = self.total_leave - self.consumed_leave - self.pending_for_approval_leaves
+        if self.balance_leaves < 0:
+            self.loss_of_pay_leaves = abs(self.balance_leaves)
+            self.balance_leaves = 0
+        else:
+            self.loss_of_pay_leaves = 0
+        self.save()
+
     
 '''-------------------- CHAT AREA -------------------'''
 
@@ -422,3 +466,33 @@ class Message(models.Model):
     recipient = models.ForeignKey(User, on_delete=models.CASCADE, related_name="received_messages")
     content = models.TextField()
     timestamp = models.DateTimeField(auto_now_add=True)
+
+
+'''-------------------------------- BREAK AREA -----------------------'''
+
+class Break(models.Model):
+    SHIFT_CHOICES = [
+        ('day', 'Day Shift'),
+        ('night', 'Night Shift'),
+    ]
+    BREAK_TYPE_CHOICES = [
+        ('tea1', 'Tea Break 1'),
+        ('lunch_dinner', 'Lunch/Dinner Break'),
+        ('tea2', 'Tea Break 2'),
+    ]
+    
+    employee = models.ForeignKey(User, on_delete=models.CASCADE, related_name='breaks')
+    break_type = models.CharField(max_length=20, choices=BREAK_TYPE_CHOICES)
+    shift = models.CharField(max_length=10, choices=SHIFT_CHOICES)
+    start_time = models.DateTimeField()
+    end_time = models.DateTimeField(null=True, blank=True)
+    reason = models.TextField(null=True, blank=True)  # Added reason field
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def duration(self):
+        if self.end_time:
+            return (self.end_time - self.start_time).total_seconds() / 60  # duration in minutes
+        return None
+
+    def __str__(self):
+        return f"{self.employee.username} - {self.break_type} ({self.shift})"
