@@ -104,8 +104,8 @@ class Attendance(models.Model):
     user = models.ForeignKey('auth.User', on_delete=models.CASCADE)
     date = models.DateField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
-    clock_in_time = models.DateTimeField(null=True, blank=True)
-    clock_out_time = models.DateTimeField(null=True, blank=True)
+    clock_in_time = models.TimeField(null=True, blank=True)
+    clock_out_time = models.TimeField(null=True, blank=True)
     total_hours = models.DurationField(null=True, blank=True)
 
     def calculate_attendance(self):

@@ -123,6 +123,34 @@
             greetingElement.innerHTML = `${getGreeting()} <span class="font-semibold text-xl">{{ user.first_name }} {{ user.last_name }}</span>`;
         });
     </script>
+    <script type="text/javascript">
+        let inactivityTime = 0;
+        const maxInactivityTime = 300000;  // 5 minutes in milliseconds
+    
+        // Function to reset inactivity timer
+        function resetInactivityTimer() {
+            inactivityTime = 0;
+        }
+    
+        // Function to handle inactivity
+        function checkInactivity() {
+            inactivityTime += 1000;  // Increase time by 1 second
+            if (inactivityTime >= maxInactivityTime) {
+                window.location.href = "{% url 'logout' %}";  // Redirect to logout URL
+            }
+        }
+    
+        // Event listeners for mouse and keyboard activity
+        window.onload = function () {
+            // Reset inactivity time on mouse or keyboard activity
+            document.onmousemove = resetInactivityTimer;
+            document.onkeypress = resetInactivityTimer;
+    
+            // Check inactivity every second
+            setInterval(checkInactivity, 1000);
+        };
+    </script>
+    
 </body>
 
 </html>
