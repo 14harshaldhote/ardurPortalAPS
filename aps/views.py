@@ -542,12 +542,14 @@ def change_password(request):
 
 ''' ---------------------------------------- TIMESHEET AREA ---------------------------------------- '''
 
+
+
 @login_required
+@user_passes_test(is_employee)  # Only allow employees to access this view
 def timesheet_view(request):
     if request.method == "POST":
-        # Handle form submission
         try:
-            # Get the submitted data
+            # Get the submitted data from the form
             week_start_date = request.POST.get('week_start_date')
             project_names = request.POST.getlist('project_name[]')
             task_names = request.POST.getlist('task_name[]')
@@ -558,7 +560,7 @@ def timesheet_view(request):
                 messages.error(request, "Project name, task name, and hours should have the same number of entries.")
                 return redirect('aps:timesheet')
 
-            # Create the Timesheet objects
+            # Create the Timesheet objects and save them to the database
             for project_name, task_name, hour in zip(project_names, task_names, hours):
                 timesheet = Timesheet(
                     user=request.user,
@@ -569,45 +571,51 @@ def timesheet_view(request):
                 )
                 timesheet.save()
 
+            # Display success message
             messages.success(request, "Timesheet submitted successfully!")
             return redirect('aps:timesheet')
 
         except Exception as e:
+            # If an error occurs, show an error message
             messages.error(request, f"An error occurred: {e}")
             return redirect('aps:timesheet')
 
     else:
-        # Display the form on GET request
+        # If it's a GET request, show the current timesheet history
         today = timezone.now().date()
 
-        # Fetch the timesheet history for the logged-in user
+        # Fetch the timesheet history for the logged-in employee, ordered by week start date
         timesheet_history = Timesheet.objects.filter(user=request.user).order_by('-week_start_date')
 
+        # Render the timesheet page with the data
         return render(request, 'components/employee/timesheet.html', {'today': today, 'timesheet_history': timesheet_history})
 
 @login_required
+@user_passes_test(is_manager)  # Only allow managers to access this view
 def manager_view_timesheets(request):
+    # Check if the logged-in user is a Manager, otherwise redirect
     if not request.user.groups.filter(name='Manager').exists():
         messages.error(request, "You do not have permission to view this page.")
         return redirect('aps:dashboard')
 
-    # Fetch all timesheets for managers to review
+    # Fetch all timesheets for managers to review, ordered by week start date (descending)
     timesheets = Timesheet.objects.all().order_by('-week_start_date')
 
-    # Calculate summary metrics
-    total_hours = sum(ts.hours for ts in timesheets)
-    active_projects = len(set(ts.project_name for ts in timesheets))
-    completion_rate = 85  # Placeholder - implement actual calculation
+    # Calculate summary metrics:
+    total_hours = sum(ts.hours for ts in timesheets)  # Sum of all hours worked
+    active_projects = len(set(ts.project_name for ts in timesheets))  # Count of unique projects
+    completion_rate = 85  # Placeholder - implement actual calculation for completion rate
 
-    # Pass the timesheet data as a list of dictionaries (no need for JSON)
+    # Context data passed to the template
     context = {
         'timesheets': timesheets,
         'total_hours': total_hours,
         'active_projects': active_projects,
         'completion_rate': completion_rate,
     }
-    return render(request, 'components/manager/view_timesheets.html', context)
 
+    # Render the timesheets to the manager's view template
+    return render(request, 'components/manager/view_timesheets.html', context)
 
 ''' ---------------------------------------- LEAVE AREA ---------------------------------------- '''
 from django.shortcuts import render, redirect, get_object_or_404
@@ -751,27 +759,36 @@ def manage_leave_request_hr(request, leave_id, action):
     })
 
 @login_required
-@user_passes_test(is_manager)  # Manager can approve leave requests for their team
-def approve_leave_manager(request, leave_id):
-    """Manager view to approve leave requests for their team"""
+@user_passes_test(is_manager)
+def view_leave_requests_manager(request):
+    """HR views all leave requests."""
+    leave_requests = Leave.objects.all()
+    return render(request, 'components/manager/view_leave_requests.html', {'leave_requests': leave_requests})
+
+
+@login_required
+@user_passes_test(is_manager)
+def manage_leave_request_manager(request, leave_id, action):
+    """HR approves or rejects leave requests."""
     leave_request = get_object_or_404(Leave, id=leave_id)
 
-    if leave_request.user.manager != request.user:
-        raise Http404("You cannot approve leaves for this employee.")
-
     if request.method == 'POST':
-        leave_request.status = 'Approved'
-        leave_request.save()
+        if action == 'approve':
+            leave_request.status = 'Approved'
+            leave_request.approver = request.user
+            leave_request.save()
+            messages.success(request, f"Leave for {leave_request.user.username} approved.")
+        elif action == 'reject':
+            leave_request.status = 'Rejected'
+            leave_request.approver = request.user
+            leave_request.save()
+            messages.warning(request, f"Leave for {leave_request.user.username} rejected.")
+        return redirect('aps_hr:view_leave_requests_hr')
 
-        leave_balance = Leave.get_leave_balance(leave_request.user)
-        leave_balance['pending_leave'] -= leave_request.leave_days
-        leave_balance['consumed_leave'] += leave_request.leave_days
-        leave_balance['available_leave'] -= leave_request.leave_days
-        leave_balance.save()
-
-        return redirect('aps_manager:view_leave_requests')
-
-    return render(request, 'components/manager/approve_leave.html', {'leave_request': leave_request})
+    return render(request, 'components/manager/manage_leave.html', {
+        'leave_request': leave_request,
+        'action': action.capitalize()
+    })
 
 @login_required
 @user_passes_test(is_admin)  # Admin can view all leave requests

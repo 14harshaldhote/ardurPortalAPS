@@ -42,12 +42,7 @@ employee_patterns = [
     path('timesheet/', views.timesheet_view, name='timesheet'),  # View timesheet for employee
     # Leave-related URLs for Employee
     path('leave/', views.leave_view, name='leave_view'),  # Employee leave dashboard
-    # path('leave/request/', views.leave_request_view, name='leave_request'),  # Employee leave request form
-    # path('leave/balance/', views.view_leave_balance, name='view_leave_balance'),  # View leave balance for employee
-    # path('delete_leave/<int:leave_id>/', views.delete_leave_request, name='delete_leave_request'),
-    # path('edit_leave/<int:leave_id>/', views.edit_leave_request, name='edit_leave_request'),
-    # path('leave/requests/', views.view_leave_requests_employee, name='view_leave_requests_employee'),  # View employee's leave history
-]
+   ]
 
 # HR specific URLs under 'portal/hr/'
 hr_patterns = [
@@ -61,7 +56,9 @@ hr_patterns = [
 # Manager-specific URLs under 'portal/manager/'
 manager_patterns = [
     # Manager views for leave management
-    path('leave/approve/<int:leave_id>/', views.approve_leave_manager, name='approve_leave_manager'),  # Manager approves leave requests for their team
+
+    path('leave/requests/', views.view_leave_requests_hr, name='view_leave_requests_manager'),
+    path('leave/<int:leave_id>/<str:action>/', views.manage_leave_request_manager, name='manage_leave_manager'),
     path('view_timesheets/', views.manager_view_timesheets, name='view_timesheets'),  # View team timesheets for manager
     path('assign_tasks/', views.assign_tasks, name='assign_tasks'),  # Manager assigns tasks to employees
     # Attendance-related URLs for Manager

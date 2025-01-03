@@ -538,10 +538,12 @@ class UserComplaint(models.Model):
         return f"Complaint by {self.employee.user.username} - Status: {self.status}"
 
 
-''' ----------------- EMPLOYEE AREA ----------------- '''
+''' ----------------- TIMESHEET AREA ----------------- '''
 
 
 
+from django.db import models
+from django.contrib.auth.models import User
 
 class Timesheet(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='timesheets')
@@ -549,13 +551,21 @@ class Timesheet(models.Model):
     project_name = models.CharField(max_length=255)
     task_name = models.CharField(max_length=255)
     hours = models.FloatField()
+    approval_status = models.CharField(
+        max_length=10,
+        choices=[('Pending', 'Pending'), ('Approved', 'Approved'), ('Rejected', 'Rejected')],
+        default='Pending'
+    )
+    manager_comments = models.TextField(blank=True, null=True)  # Allows manager to provide feedback
+    submitted_at = models.DateTimeField(auto_now_add=True)  # Tracks when the timesheet was submitted
+    reviewed_at = models.DateTimeField(null=True, blank=True)  # Tracks when the timesheet was reviewed
 
     def __str__(self):
         return f"Timesheet for {self.project_name} - {self.week_start_date}"
 
     class Meta:
-        unique_together = ('user', 'week_start_date', 'project_name', 'task_name')  # Corrected field name 'user' to 'user'
-        ordering = ['-week_start_date']  # Orders the entries by date (latest first)
+        unique_together = ('user', 'week_start_date', 'project_name', 'task_name')
+        ordering = ['-week_start_date']
 
 
 """ ------------------ LEAVE AREA ------------------ """

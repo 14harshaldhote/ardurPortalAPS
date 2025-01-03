@@ -3,7 +3,6 @@
 {% block content %}
 <div class="space-y-6">
     <!-- Header Section -->
-
     <div class="flex justify-between items-center rounded-lg">
         <h1 class="text-3xl font-thin text-gray-900">Timesheet Overview</h1>
     
@@ -60,6 +59,7 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Task</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hours</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
@@ -70,6 +70,17 @@
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ timesheet.project_name }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ timesheet.task_name }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ timesheet.hours }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <!-- Action Buttons -->
+                            {% if user.is_manager %}
+                            <button class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-xs">
+                                Approve
+                            </button>
+                            <button class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-xs ml-2">
+                                Reject
+                            </button>
+                            {% endif %}
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
