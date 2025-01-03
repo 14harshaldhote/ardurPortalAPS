@@ -171,13 +171,17 @@ class Leave(models.Model):
             total_days=models.Sum('leave_days')
         )['total_days'] or 0
 
+        available_leave = TOTAL_LEAVES - approved_leaves - pending_leaves
+
         return {
             'total_leave': TOTAL_LEAVES,
             'consumed_leave': approved_leaves,
             'pending_leave': pending_leaves,
-            'available_leave': TOTAL_LEAVES - approved_leaves - pending_leaves
+            'available_leave': available_leave,
         }
 
+
+    
     @classmethod
     def can_apply_leave(cls, user, requested_days):
         """Check if user can apply for leave"""

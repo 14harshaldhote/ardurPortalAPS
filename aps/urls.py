@@ -42,11 +42,11 @@ employee_patterns = [
     path('timesheet/', views.timesheet_view, name='timesheet'),  # View timesheet for employee
     # Leave-related URLs for Employee
     path('leave/', views.leave_view, name='leave_view'),  # Employee leave dashboard
-    path('leave/request/', views.leave_request_view, name='leave_request'),  # Employee leave request form
-    path('leave/balance/', views.view_leave_balance, name='view_leave_balance'),  # View leave balance for employee
-    path('delete_leave/<int:leave_id>/', views.delete_leave_request, name='delete_leave_request'),
-
-    path('leave/requests/', views.view_leave_requests_employee, name='view_leave_requests_employee'),  # View employee's leave history
+    # path('leave/request/', views.leave_request_view, name='leave_request'),  # Employee leave request form
+    # path('leave/balance/', views.view_leave_balance, name='view_leave_balance'),  # View leave balance for employee
+    # path('delete_leave/<int:leave_id>/', views.delete_leave_request, name='delete_leave_request'),
+    # path('edit_leave/<int:leave_id>/', views.edit_leave_request, name='edit_leave_request'),
+    # path('leave/requests/', views.view_leave_requests_employee, name='view_leave_requests_employee'),  # View employee's leave history
 ]
 
 # HR specific URLs under 'portal/hr/'

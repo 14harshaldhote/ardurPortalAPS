@@ -1,152 +1,108 @@
 {% extends 'base.html' %}
 
-{% block title %}Timesheet - Ardur Portal{% endblock %}
-
 {% block content %}
-<div class="container mx-auto px-4 py-8">
-    <h1 class="text-3xl font-thin text-gray-800 mb-6">Timesheet</h1>
+<div class="container mx-auto px-4 py-6">
+    <h1 class="text-3xl font-thin text-gray-800 mb-6">Timesheet Management</h1>
 
-    <!-- Current day and time display -->
-    <div class=" shadow-sm rounded-sm p-4 mb-6">
-        <div class="flex justify-between items-center">
-            <h3 class="text-lg font-thin text-gray-700">
-                <span id="current-day" class="font-medium"></span> | 
-                <span id="current-time"></span>
-            </h3>
-            
-            <!-- Internal Navigation -->
-            <nav class="flex space-x-6">
-                <a href="#section1" class="nav-link text-lg font-small text-gray-600 hover:text-pink-700 transition-all duration-300"
-                    data-section="section1">Daily Entry</a>
-                <a href="#section2" class="nav-link text-lg font-small text-gray-600 hover:text-pink-700 transition-all duration-300"
-                    data-section="section2">View History</a>
-            </nav>
-        </div>
+    <div class="bg-white rounded-lg shadow p-4 mb-6">
+        <div id="current-day" class="text-lg text-gray-700 font-medium"></div>
+        <div id="current-time" class="text-gray-600"></div>
     </div>
 
-    <!-- Sections -->
-    <section id="section1" class="section mb-12">
-        {% if messages %}
-            <div class="mb-6">
-                {% for message in messages %}
-                    <div class="p-4 mb-4 rounded-lg {% if message.tags == 'success' %}bg-green-100 text-green-700{% elif message.tags == 'error' %}bg-red-100 text-red-700{% else %}bg-blue-100 text-blue-700{% endif %}">
+    <div class="grid grid-cols-1 md:grid-cols-1 ">
+        <!-- Daily Entry Form -->
+        <div class="md:col-span-2">
+            <div class="bg-white rounded-lg shadow p-4 mb-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">Daily Entry</h2>
+                
+                {% if messages %}
+                    {% for message in messages %}
+                    <div class="p-3 mb-4 rounded {% if message.tags == 'success' %}bg-green-100 text-green-700{% else %}bg-red-100 text-red-700{% endif %}">
                         {{ message }}
                     </div>
-                {% endfor %}
-            </div>
-        {% endif %}
+                    {% endfor %}
+                {% endif %}
 
-        <form method="post" action="{% url 'aps_employee:timesheet' %}" class="bg-white shadow-sm rounded-lg">
-            {% csrf_token %}
-            <div class="p-6">
-                <div class="mb-6">
-                    <label for="week_start_date" class="block text-sm font-medium text-gray-700 mb-2">Timesheet Date:</label>
-                    <input type="date" id="week_start_date" name="week_start_date" 
-                           value="{{ profile.week_start_date|default:today }}" 
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                           required>
-                </div>
-
-                <div class="overflow-x-auto">
-                    <table class="w-full mb-6">
-                        <thead>
-                            <tr class="bg-gray-50">
-                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Project Name</th>
-                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Task Name</th>
-                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Hours</th>
-                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="timesheet-rows">
-                            <tr class="border-t border-gray-200">
-                                <td class="px-4 py-3">
-                                    <input type="text" name="project_name[]" 
-                                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                                           required>
-                                </td>
-                                <td class="px-4 py-3">
-                                    <input type="text" name="task_name[]" 
-                                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                                           required>
-                                </td>
-                                <td class="px-4 py-3">
-                                    <input type="number" name="hours[]" step="0.5" 
-                                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                                           required>
-                                </td>
-                                <td class="px-4 py-3">
-                                    <button type="button" 
-                                            class="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors" 
-                                            onclick="removeRow(this)">Remove</button>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <div class="flex justify-between items-center mb-6">
-                    <button type="button" 
-                            class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors" 
-                            onclick="addRow()">+ Add Row</button>
-                    <div class="text-gray-700">
-                        <strong>Total Hours: </strong>
-                        <span id="total-hours" class="font-semibold">0</span>
+                <form method="post" action="{% url 'aps_employee:timesheet' %}" id="timesheet-form">
+                    {% csrf_token %}
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Date</label>
+                        <input type="date" name="week_start_date" value="{{ profile.week_start_date|default:today }}" 
+                               class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                     </div>
-                </div>
 
-                <div class="text-center">
-                    <button type="submit" 
-                            class="px-6 py-3 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors font-medium">
+                    <div class="border rounded-lg mb-4 overflow-hidden">
+                        <table class="w-full">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-600">Project</th>
+                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-600">Task</th>
+                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-600">Hours</th>
+                                    <th class="w-16"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="timesheet-rows">
+                                <tr class="border-t">
+                                    <td class="p-2"><input type="text" name="project_name[]" class="w-full px-2 py-1 border rounded"></td>
+                                    <td class="p-2"><input type="text" name="task_name[]" class="w-full px-2 py-1 border rounded"></td>
+                                    <td class="p-2"><input type="number" name="hours[]" step="0.5" class="w-full px-2 py-1 border rounded"></td>
+                                    <td class="p-2"><button type="button" onclick="removeRow(this)" class="text-red-600 hover:text-red-800">×</button></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="flex items-center justify-between mb-4">
+                        <button type="button" onclick="addRow()" class="text-blue-600 hover:text-blue-800">+ Add Row</button>
+                        <span class="text-sm text-gray-600">Total: <span id="total-hours" class="font-medium">0</span>h</span>
+                    </div>
+
+                    <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors">
                         Submit Timesheet
                     </button>
-                </div>
+                </form>
             </div>
-        </form>
-    </section>
+        </div>
 
-    <section id="section2" class="section mb-12 hidden">
-        <div class="bg-white shadow-lg rounded-lg p-6">
-            <h2 class="text-2xl font-semibold text-gray-800 mb-6">Timesheet History</h2>
-            
-            <!-- Filter Section -->
-            <div class="flex justify-between mb-6">
-                <div class="flex space-x-4">
-                    <input type="date" id="filter-date" class="px-4 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500" placeholder="Filter by Date">
-                    <input type="text" id="filter-project" class="px-4 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500" placeholder="Filter by Project">
-                    <input type="text" id="filter-task" class="px-4 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500" placeholder="Filter by Task">
+        <!-- History Section -->
+        <div class="md:col-span-3">
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">History</h2>
+                
+                <div class="flex flex-wrap gap-3 mb-4">
+                    <input type="date" class="px-3 py-2 border rounded text-sm" placeholder="Date">
+                    <input type="text" class="px-3 py-2 border rounded text-sm" placeholder="Project">
+                    <input type="text" class="px-3 py-2 border rounded text-sm" placeholder="Task">
+                    <button class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">Filter</button>
                 </div>
-                <button class="px-6 py-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 focus:outline-none transition-colors" onclick="applyFilters()">Apply Filters</button>
-            </div>
-    
-            <!-- Timesheet History Table -->
-            {% if timesheet_history %}
-                <div class="overflow-x-auto">
-                    <table class="min-w-full bg-white shadow-sm rounded-lg">
-                        <thead>
-                            <tr class="bg-gray-100 border-b">
-                                <th class="py-2 px-4 text-left text-sm font-semibold text-gray-700">Date</th>
-                                <th class="py-2 px-4 text-left text-sm font-semibold text-gray-700">Project Name</th>
-                                <th class="py-2 px-4 text-left text-sm font-semibold text-gray-700">Task Name</th>
-                                <th class="py-2 px-4 text-left text-sm font-semibold text-gray-700">Hours</th>
+
+                <div class="border rounded-lg overflow-hidden">
+                    <table class="w-full">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-600">Date</th>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-600">Project</th>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-600">Task</th>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-600">Hours</th>
                             </tr>
                         </thead>
-                        <tbody id="timesheet-table-body">
+                        <tbody>
                             {% for timesheet in timesheet_history %}
-                                <tr class="border-t">
-                                    <td class="py-2 px-4 text-sm text-gray-700">{{ timesheet.week_start_date }}</td>
-                                    <td class="py-2 px-4 text-sm text-gray-700">{{ timesheet.project_name }}</td>
-                                    <td class="py-2 px-4 text-sm text-gray-700">{{ timesheet.task_name }}</td>
-                                    <td class="py-2 px-4 text-sm text-gray-700">{{ timesheet.hours }}</td>
-                                </tr>
+                            <tr class="border-t">
+                                <td class="px-4 py-2 text-sm">{{ timesheet.week_start_date }}</td>
+                                <td class="px-4 py-2 text-sm">{{ timesheet.project_name }}</td>
+                                <td class="px-4 py-2 text-sm">{{ timesheet.task_name }}</td>
+                                <td class="px-4 py-2 text-sm">{{ timesheet.hours }}</td>
+                            </tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
-            {% else %}
-                <p class="text-gray-600">No timesheet history available.</p>
-            {% endif %}
+            </div>
         </div>
-    </section>
+    </div>
+</div>
+
     
     <script>
         function applyFilters() {

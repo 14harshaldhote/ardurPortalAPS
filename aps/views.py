@@ -614,82 +614,109 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.http import Http404
 from .models import Leave
+from django.shortcuts import render, redirect
+from django.contrib import messages
+from .models import Leave
+from django.contrib.auth.decorators import login_required, user_passes_test
+from datetime import datetime
 
+from django.shortcuts import render, redirect
+from django.contrib import messages
+from .models import Leave
+from django.contrib.auth.decorators import login_required, user_passes_test
+from datetime import datetime
 
 @login_required
 @user_passes_test(is_employee)
 def leave_view(request):
-    """Main leave view for employees."""
+    """Handle multiple leave functionalities on one page."""
     leave_balance = Leave.get_leave_balance(request.user)
-    leave_requests = Leave.objects.filter(user=request.user).order_by('-start_date')
-    return render(request, 'components/employee/leave.html', {
-        'leave_balance': leave_balance,
-        'leave_requests': leave_requests,
-    })
 
-@login_required
-@user_passes_test(is_employee)
-def leave_request_view(request):
-    """Handles the leave request submission."""
-    if request.method == 'POST':
+    # Fetch leave requests for the current user
+    leave_requests = Leave.objects.filter(user=request.user)
+
+    # Handle leave request submission (creating a new leave request)
+    if request.method == 'POST' and 'request_leave' in request.POST:
         leave_type = request.POST.get('leave_type')
         start_date = request.POST.get('start_date')
         end_date = request.POST.get('end_date')
         reason = request.POST.get('reason')
+
+        # Print form data to check if it’s correctly received
+        print(f"Request Leave - Leave Type: {leave_type}, Start Date: {start_date}, End Date: {end_date}, Reason: {reason}")
 
         try:
             start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
             end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
         except ValueError:
             messages.error(request, "Invalid date format. Please use YYYY-MM-DD.")
-            return redirect('aps_employee:leave_request')  # Ensure this matches the URL name
+            return redirect('aps_employee:leave_view')
 
         if start_date > end_date:
             messages.error(request, "Start date cannot be after the end date.")
-            return redirect('aps_employee:leave_request')
+            return redirect('aps_employee:leave_view')
 
         leave_days = (end_date - start_date).days + 1
         leave_balance = Leave.get_leave_balance(request.user)
 
         if leave_balance['available_leave'] < leave_days:
             messages.error(request, "Insufficient leave balance.")
-            return redirect('aps_employee:leave_request')
+            return redirect('aps_employee:leave_view')
 
-        leave_request = Leave(
+        # Create a new leave request
+        Leave.objects.create(
             user=request.user,
             leave_type=leave_type,
             start_date=start_date,
             end_date=end_date,
             leave_days=leave_days,
             reason=reason,
+            status='Pending',
         )
-        leave_request.save()
-
+        print(f"Leave request for {leave_type} from {start_date} to {end_date} created.")
         messages.success(request, f"Leave request for {leave_type} from {start_date} to {end_date} has been submitted.")
-        return redirect('aps_employee:leave_request')  # Ensure this matches the URL name
+        return redirect('aps_employee:leave_view')
 
-    return redirect('aps_employee:leave_view')  # Redirect to the main leave page on GET
+    # Handle leave request updates (edit or delete)
+    if request.method == 'POST' and 'edit_leave' in request.POST:
+        leave_id = request.POST.get('leave_id')
+        leave = Leave.objects.get(id=leave_id)
+        if leave.user == request.user:
+            print(f"Editing Leave Request - ID: {leave_id}")
+            print(f"Form Data: start_date={request.POST.get('start_date')}, end_date={request.POST.get('end_date')}, reason={request.POST.get('reason')}")
 
-@login_required
-@user_passes_test(is_employee)
-def view_leave_balance(request):
-    """Shows leave balance for employees."""
-    leave_balance = Leave.get_leave_balance(request.user)
-    return render(request, 'components/employee/leave.html', {'leave_balance': leave_balance})
+            # Check if 'start_date' is present and not empty
+            start_date = request.POST.get('start_date')
+            if not start_date:
+                messages.error(request, "Start date is required.")
+                return redirect('aps_employee:leave_view')
 
-@login_required
-@user_passes_test(is_employee)
-def view_leave_requests_employee(request):
-    """Displays the employee's leave requests."""
-    leave_requests = Leave.objects.filter(user=request.user).order_by('-start_date')
-    return render(request, 'components/employee/leave.html', {'leave_requests': leave_requests})
-@login_required
-@user_passes_test(is_employee)
-def delete_leave_request(request, leave_id):
-    """Allows an employee to delete their leave request."""
-    leave = get_object_or_404(Leave, id=leave_id, user=request.user)
-    leave.delete()
-    return redirect('view_leave_requests_employee')  # Redirect to the leave requests page
+            leave.start_date = start_date
+            leave.end_date = request.POST.get('end_date')
+            leave.reason = request.POST.get('reason')
+            leave.status = request.POST.get('status', leave.status)
+            leave.save()
+            print(f"Leave request {leave_id} updated.")
+            messages.success(request, "Leave request updated.")
+            return redirect('aps_employee:leave_view')
+
+
+    if request.method == 'POST' and 'delete_leave' in request.POST:
+        leave_id = request.POST.get('leave_id')
+        leave = Leave.objects.get(id=leave_id)
+        if leave.user == request.user:
+            print(f"Deleting Leave Request - ID: {leave_id}")
+            leave.delete()
+            print(f"Leave request {leave_id} deleted.")
+            messages.success(request, "Leave request deleted.")
+            return redirect('aps_employee:leave_view')
+
+    # Render the page with the leave balance and the leave requests for the user
+    print(f"Leave balance: {leave_balance}, Leave requests: {leave_requests}")
+    return render(request, 'components/employee/leave.html', {
+        'leave_balance': leave_balance,
+        'leave_requests': leave_requests,  # Pass leave_requests to the template
+    })
 
 @login_required
 @user_passes_test(is_hr)
