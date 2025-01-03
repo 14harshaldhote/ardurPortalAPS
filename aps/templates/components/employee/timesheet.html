@@ -4,243 +4,128 @@
 <div class="container mx-auto px-4 py-6">
     <h1 class="text-3xl font-thin text-gray-800 mb-6">Timesheet Management</h1>
 
+    <!-- Display Current Date and Time -->
     <div class="bg-white rounded-lg shadow p-4 mb-6">
         <div id="current-day" class="text-lg text-gray-700 font-medium"></div>
         <div id="current-time" class="text-gray-600"></div>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-1 ">
+    <div class="grid grid-cols-1 md:grid-cols-1 gap-6">
         <!-- Daily Entry Form -->
-        <div class="md:col-span-2">
-            <div class="bg-white rounded-lg shadow p-4 mb-6">
-                <h2 class="text-xl font-semibold text-gray-800 mb-4">Daily Entry</h2>
-                
-                {% if messages %}
-                    {% for message in messages %}
-                    <div class="p-3 mb-4 rounded {% if message.tags == 'success' %}bg-green-100 text-green-700{% else %}bg-red-100 text-red-700{% endif %}">
-                        {{ message }}
-                    </div>
-                    {% endfor %}
-                {% endif %}
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Daily Entry</h2>
+            
+            {% if messages %}
+                {% for message in messages %}
+                <div class="p-3 mb-4 rounded {% if message.tags == 'success' %}bg-green-100 text-green-700{% else %}bg-red-100 text-red-700{% endif %}">
+                    {{ message }}
+                </div>
+                {% endfor %}
+            {% endif %}
 
-                <form method="post" action="{% url 'aps_employee:timesheet' %}" id="timesheet-form">
-                    {% csrf_token %}
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Date</label>
-                        <input type="date" name="week_start_date" value="{{ profile.week_start_date|default:today }}" 
-                               class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                    </div>
-
-                    <div class="border rounded-lg mb-4 overflow-hidden">
-                        <table class="w-full">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-600">Project</th>
-                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-600">Task</th>
-                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-600">Hours</th>
-                                    <th class="w-16"></th>
-                                </tr>
-                            </thead>
-                            <tbody id="timesheet-rows">
-                                <tr class="border-t">
-                                    <td class="p-2"><input type="text" name="project_name[]" class="w-full px-2 py-1 border rounded"></td>
-                                    <td class="p-2"><input type="text" name="task_name[]" class="w-full px-2 py-1 border rounded"></td>
-                                    <td class="p-2"><input type="number" name="hours[]" step="0.5" class="w-full px-2 py-1 border rounded"></td>
-                                    <td class="p-2"><button type="button" onclick="removeRow(this)" class="text-red-600 hover:text-red-800">×</button></td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div class="flex items-center justify-between mb-4">
-                        <button type="button" onclick="addRow()" class="text-blue-600 hover:text-blue-800">+ Add Row</button>
-                        <span class="text-sm text-gray-600">Total: <span id="total-hours" class="font-medium">0</span>h</span>
-                    </div>
-
-                    <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors">
-                        Submit Timesheet
-                    </button>
-                </form>
-            </div>
-        </div>
-
-        <!-- History Section -->
-        <div class="md:col-span-3">
-            <div class="bg-white rounded-lg shadow p-6">
-                <h2 class="text-xl font-semibold text-gray-800 mb-4">History</h2>
-                
-                <div class="flex flex-wrap gap-3 mb-4">
-                    <input type="date" class="px-3 py-2 border rounded text-sm" placeholder="Date">
-                    <input type="text" class="px-3 py-2 border rounded text-sm" placeholder="Project">
-                    <input type="text" class="px-3 py-2 border rounded text-sm" placeholder="Task">
-                    <button class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">Filter</button>
+            <form method="post" action="{% url 'aps_employee:timesheet' %}">
+                {% csrf_token %}
+                <div class="mb-4">
+                    <label for="week_start_date" class="block text-sm font-medium text-gray-700">Week Start Date</label>
+                    <input type="date" id="week_start_date" name="week_start_date"
+                           value="{{ profile.week_start_date|default:today }}" 
+                           class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500">
                 </div>
 
-                <div class="border rounded-lg overflow-hidden">
+                <div class="border rounded-lg mb-4 overflow-hidden">
                     <table class="w-full">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-600">Date</th>
-                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-600">Project</th>
-                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-600">Task</th>
-                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-600">Hours</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-600">Project</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-600">Task</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-600">Hours</th>
+                                <th class="w-16"></th>
                             </tr>
                         </thead>
-                        <tbody>
-                            {% for timesheet in timesheet_history %}
+                        <tbody id="timesheet-rows">
                             <tr class="border-t">
-                                <td class="px-4 py-2 text-sm">{{ timesheet.week_start_date }}</td>
-                                <td class="px-4 py-2 text-sm">{{ timesheet.project_name }}</td>
-                                <td class="px-4 py-2 text-sm">{{ timesheet.task_name }}</td>
-                                <td class="px-4 py-2 text-sm">{{ timesheet.hours }}</td>
+                                <td class="p-2"><input type="text" name="project_name[]" class="w-full px-2 py-1 border rounded"></td>
+                                <td class="p-2"><input type="text" name="task_name[]" class="w-full px-2 py-1 border rounded"></td>
+                                <td class="p-2"><input type="number" name="hours[]" step="0.5" class="w-full px-2 py-1 border rounded"></td>
+                               
+                                <td class="p-2"><button type="button" onclick="removeRow(this)" class="text-red-600 hover:text-red-800">×</button></td>
                             </tr>
-                            {% endfor %}
                         </tbody>
                     </table>
                 </div>
+
+                <button type="button" onclick="addRow()" class="text-blue-600 hover:text-blue-800">+ Add Row</button>
+                <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors mt-4">
+                    Submit Timesheet
+                </button>
+            </form>
+        </div>
+
+        <!-- History Section -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Timesheet History</h2>
+            <div class="flex flex-wrap gap-3 mb-4">
+                <input type="date" class="px-3 py-2 border rounded text-sm" placeholder="Date">
+                <input type="text" class="px-3 py-2 border rounded text-sm" placeholder="Project">
+                <button class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">Filter</button>
+            </div>
+
+            <div class="border rounded-lg overflow-hidden">
+                <table class="w-full">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-600">Date</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-600">Project</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-600">Task</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-600">Hours</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-600">Approval Status</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-600">Manager Comments</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for timesheet in timesheet_history %}
+                        <tr class="border-t">
+                            <td class="px-4 py-2 text-sm">{{ timesheet.week_start_date }}</td>
+                            <td class="px-4 py-2 text-sm">{{ timesheet.project_name }}</td>
+                            <td class="px-4 py-2 text-sm">{{ timesheet.task_name }}</td>
+                            <td class="px-4 py-2 text-sm">{{ timesheet.hours }}</td>
+                            <td class="px-4 py-2 text-sm">{{ timesheet.approval_status }}</td>
+                            <td class="px-4 py-2 text-sm">{{ timesheet.manager_comments|default:"-" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
 </div>
-
-    
-    <script>
-        function applyFilters() {
-            // Get the filter values
-            const filterDate = document.getElementById('filter-date').value;
-            const filterProject = document.getElementById('filter-project').value.toLowerCase();
-            const filterTask = document.getElementById('filter-task').value.toLowerCase();
-            
-            // Get all rows from the table
-            const rows = document.querySelectorAll('#timesheet-table-body tr');
-            
-            rows.forEach(row => {
-                const date = row.cells[0].textContent;
-                const projectName = row.cells[1].textContent.toLowerCase();
-                const taskName = row.cells[2].textContent.toLowerCase();
-                
-                // Filter based on the values entered
-                const dateMatch = filterDate ? date.includes(filterDate) : true;
-                const projectMatch = filterProject ? projectName.includes(filterProject) : true;
-                const taskMatch = filterTask ? taskName.includes(filterTask) : true;
-                
-                // Show or hide row based on filter criteria
-                if (dateMatch && projectMatch && taskMatch) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        }
-    </script>
-    
-    <style>
-        .hidden {
-            display: none;
-        }
-        #filter-date,
-        #filter-project,
-        #filter-task {
-            width: 250px;
-        }
-        #filter-date:focus,
-        #filter-project:focus,
-        #filter-task:focus {
-            border-color: #ffb766;
-            box-shadow: 0 0 5px rgba(255, 183, 102, 0.7);
-        }
-    </style>
-    
-    
-</div>
-
 <script>
     function updateDateTime() {
         const now = new Date();
-        const day = now.toLocaleDateString('en-IN', { weekday: 'long' });
-        const time = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
+        // Format the date (e.g., Monday, January 3, 2025)
+        const day = now.toLocaleDateString('en-IN', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+
+        // Format the time (e.g., 10:30:15 PM)
+        const time = now.toLocaleTimeString('en-IN', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+
+        // Update the elements
         document.getElementById('current-day').textContent = day;
         document.getElementById('current-time').textContent = time;
     }
 
+    // Call the function initially and set an interval to update every second
     setInterval(updateDateTime, 1000);
     updateDateTime();
-
-    document.addEventListener('DOMContentLoaded', function () {
-        const navLinks = document.querySelectorAll('.nav-link');
-        const sections = document.querySelectorAll('.section');
-
-        navLinks.forEach(link => {
-            link.addEventListener('click', function (event) {
-                event.preventDefault();
-                const targetSection = this.getAttribute('data-section');
-                
-                navLinks.forEach(l => l.classList.remove('text-blue-600'));
-                this.classList.add('text-blue-600');
-                
-                sections.forEach(section => section.classList.add('hidden'));
-                document.getElementById(targetSection).classList.remove('hidden');
-            });
-        });
-        
-        navLinks[0].click();
-    });
-
-    function addRow() {
-        const table = document.getElementById('timesheet-rows');
-        const newRow = `
-            <tr class="border-t border-gray-200">
-                <td class="px-4 py-3">
-                    <input type="text" name="project_name[]" 
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                           required>
-                </td>
-                <td class="px-4 py-3">
-                    <input type="text" name="task_name[]" 
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                           required>
-                </td>
-                <td class="px-4 py-3">
-                    <input type="number" name="hours[]" step="0.5" 
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                           required>
-                </td>
-                <td class="px-4 py-3">
-                    <button type="button" 
-                            class="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors" 
-                            onclick="removeRow(this)">Remove</button>
-                </td>
-            </tr>`;
-        table.insertAdjacentHTML('beforeend', newRow);
-        updateTotalHours();
-    }
-
-    function removeRow(button) {
-        const row = button.closest('tr');
-        row.remove();
-        updateTotalHours();
-    }
-
-    function updateTotalHours() {
-        const hoursInputs = document.querySelectorAll('input[name="hours[]"]');
-        let total = 0;
-        hoursInputs.forEach(input => {
-            total += parseFloat(input.value) || 0;
-        });
-        document.getElementById('total-hours').textContent = total.toFixed(2);
-    }
-
-    document.addEventListener('input', event => {
-        if (event.target.name === 'hours[]') {
-            updateTotalHours();
-        }
-    });
 </script>
 
-<style>
-    .hidden {
-        display: none;
-    }
-</style>
 {% endblock %}
