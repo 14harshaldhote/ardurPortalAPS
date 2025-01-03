@@ -811,120 +811,266 @@ def view_leave_requests_manager(request):
 
 ''' ------------------------------------------- PROJECT AREA ------------------------------------------- '''
 
-
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib import messages
+from django.contrib.auth.models import Group
+from .models import Project, User, ProjectAssignment
 
 @login_required
 @user_passes_test(is_admin)
-def project_management(request):
-    return render(request, 'components/admin/projects.html')
+def project_view(request, action=None, project_id=None):
+    """
+    Handles all project-related actions: list, detail, create, update, delete, and assign user.
+    """
+    print(f"Requested action: {action}")  # Log the requested action
 
-@login_required
-@user_passes_test(is_admin)  # You can adjust this if other roles should access this view
-def project_view(request, project_id=None):
-    """View for managing a project (creating, editing, viewing)."""
-    
-    if project_id:
+    # Action to list all projects
+    if action == "list":
+        projects = Project.objects.all()
+        return render(request, 'components/admin/project_view.html', {'projects': projects})
+
+    # Action to view project details
+    elif action == "detail" and project_id:
         project = get_object_or_404(Project, id=project_id)
-    else:
-        project = None  # If no project_id is provided, it means we are creating a new project
+        assignments = ProjectAssignment.objects.filter(project=project)
+        context = {
+            'project': project,
+            'assignments': assignments,
+            'is_overdue': project.is_overdue(),
+        }
+        return render(request, 'components/admin/project_view.html', context)
+
+    # Action to create a new project
+    elif action == "create":
+        manager_group = Group.objects.get(name="Manager")
+        employee_group = Group.objects.get(name="Employee")
+        managers = manager_group.user_set.all()  # Fetch all users in the 'Manager' group
+        employees = employee_group.user_set.all()  # Fetch all users in the 'Employee' group
+
+        if request.method == 'POST':
+            name = request.POST.get('name')
+            description = request.POST.get('description')
+            status = request.POST.get('status')
+            due_date = request.POST.get('due_date')
+            manager_id = request.POST.get('manager')
+            employee_ids = request.POST.getlist('employees')  # Expecting a list of employee IDs
+
+            if manager_id:
+                try:
+                    manager = User.objects.get(id=manager_id)
+                except User.DoesNotExist:
+                    messages.error(request, "Selected manager does not exist.")
+                    return redirect('aps_admin:project_create')
+            else:
+                manager = None
+
+            # Create the project and assign the manager
+            project = Project(name=name, description=description, status=status, due_date=due_date, manager=manager)
+            project.save()
+
+            # Optionally, create a project assignment for the manager
+            if manager:
+                ProjectAssignment.objects.create(project=project, user=manager, role_in_project='Manager')
+
+            # Create project assignments for selected employees
+            for employee_id in employee_ids:
+                try:
+                    employee = User.objects.get(id=employee_id)
+                    ProjectAssignment.objects.create(project=project, user=employee, role_in_project='Employee')
+                except User.DoesNotExist:
+                    messages.error(request, f"Employee with ID {employee_id} does not exist.")
+            
+            messages.success(request, "Project created successfully!")
+            return redirect('aps_admin:project_view', action="detail", project_id=project.id)  # Redirect to project detail view
+
+        return render(request, 'components/admin/project_view.html', {'managers': managers, 'employees': employees})
+
+    # Action to update an existing project
+    elif action == "update" and project_id:
+        project = get_object_or_404(Project, id=project_id)
+        manager_group = Group.objects.get(name="Manager")
+        employee_group = Group.objects.get(name="Employee")
+        managers = manager_group.user_set.all()  # Fetch all users in the 'Manager' group
+        employees = employee_group.user_set.all()  # Fetch all users in the 'Employee' group
+
+        if request.method == 'POST':
+            project.name = request.POST.get('name', project.name)
+            project.description = request.POST.get('description', project.description)
+            project.status = request.POST.get('status', project.status)
+            project.due_date = request.POST.get('due_date', project.due_date)
+
+            manager_id = request.POST.get('manager')
+            if manager_id:
+                try:
+                    manager = User.objects.get(id=manager_id)
+                    project.manager = manager
+                except User.DoesNotExist:
+                    messages.error(request, "Selected manager does not exist.")
+                    return redirect('aps_admin:project_view', action="update", project_id=project.id)
+
+            # Assign new employees if needed
+            employee_ids = request.POST.getlist('employees')
+            if employee_ids:
+                # Remove previous employee assignments
+                ProjectAssignment.objects.filter(project=project, role_in_project='Employee').delete()
+
+                # Add new employee assignments
+                for employee_id in employee_ids:
+                    try:
+                        employee = User.objects.get(id=employee_id)
+                        ProjectAssignment.objects.create(project=project, user=employee, role_in_project='Employee')
+                    except User.DoesNotExist:
+                        messages.error(request, f"Employee with ID {employee_id} does not exist.")
+
+            project.save()
+            messages.success(request, "Project updated successfully!")
+            return redirect('aps_admin:project_view', action="detail", project_id=project.id)
+
+        context = {'project': project, 'managers': managers, 'employees': employees}
+        return render(request, 'components/admin/project_view.html', context)
+
+    # Action to delete a project
+    elif action == "delete" and project_id:
+        project = get_object_or_404(Project, id=project_id)
+        if request.method == 'POST':  # Confirm deletion
+            project.delete()
+            messages.success(request, "Project deleted successfully!")
+            return redirect('aps_admin:project_view', action="list")
+        return render(request, 'components/admin/project_view.html', {'project': project})
+
+    # Action to assign a user to a project
+    elif action == "assign" and project_id:
+        project = get_object_or_404(Project, id=project_id)
+        if request.method == 'POST':
+            user_id = request.POST.get('user')
+            role_in_project = request.POST.get('role_in_project')
+
+            user = User.objects.get(id=user_id) if user_id else None
+            if user:
+                assignment = ProjectAssignment(project=project, user=user, role_in_project=role_in_project)
+                assignment.save()
+                messages.success(request, "User assigned to the project successfully!")
+                return redirect('aps_admin:project_view', action="detail", project_id=project.id)
+
+        context = {'project': project}
+        return render(request, 'components/admin/project_view.html', context)
+
+    # Default action: Redirect to project list
+    return redirect('aps_admin:project_view', action="list")
+
+
+# @login_required
+# @user_passes_test(is_admin)
+# def project_management(request):
+#     return render(request, 'components/admin/projects.html')
+
+# @login_required
+# @user_passes_test(is_admin)  # You can adjust this if other roles should access this view
+# def project_view(request, project_id=None):
+#     """View for managing a project (creating, editing, viewing)."""
     
-    return render(request, 'components/admin/project/view_project.html', {'project': project})
-# Admin can create new project
-@login_required
-@user_passes_test(is_admin)
-def add_project(request):
-    """View for adding a new project."""
+#     if project_id:
+#         project = get_object_or_404(Project, id=project_id)
+#     else:
+#         project = None  # If no project_id is provided, it means we are creating a new project
     
-    # Define the form directly in the view
-    class ProjectForm(forms.ModelForm):
-        class Meta:
-            model = Project
-            fields = ['name', 'description', 'deadline', 'status']
-
-    if request.method == 'POST':
-        form = ProjectForm(request.POST)
-        if form.is_valid():
-            project = form.save()
-            return redirect('view_project', project_id=project.id)  # Redirect to the project details page
-    else:
-        form = ProjectForm()
-
-    return render(request, 'components/admin/project/add_project.html', {'form': form})
-
-# Admin or Manager can assign a manager to a project
-@login_required
-@user_passes_test(is_admin)
-def assign_manager(request, project_id):
-    """View for assigning a manager to a project."""
-    project = get_object_or_404(Project, id=project_id)
-    if request.method == 'POST':
-        manager_username = request.POST.get('manager')
-        manager = get_object_or_404(User, username=manager_username)
-        assignment = ProjectAssignment.objects.create(project=project, user=manager, role_in_project='Manager')
-        return redirect('view_project', project_id=project.id)
-
-    # Get a list of users that can be assigned as manager
-    available_managers = User.objects.filter(groups__name="Manager")
-    return render(request, 'components/admin/project/assign_manager.html', {'project': project, 'available_managers': available_managers})
-
-# Admin or Manager can assign employees to a project
-@login_required
-@user_passes_test(lambda user: user.groups.filter(name__in=['Admin', 'Manager']).exists())
-def assign_employee(request, project_id):
-    """View for assigning an employee to a project."""
-    project = get_object_or_404(Project, id=project_id)
+#     return render(request, 'components/admin/project/view_project.html', {'project': project})
+# # Admin can create new project
+# @login_required
+# @user_passes_test(is_admin)
+# def add_project(request):
+#     """View for adding a new project."""
     
-    # Define the form directly in the view
-    class ProjectAssignmentForm(forms.ModelForm):
-        class Meta:
-            model = ProjectAssignment
-            fields = ['user', 'role_in_project']
+#     # Define the form directly in the view
+#     class ProjectForm(forms.ModelForm):
+#         class Meta:
+#             model = Project
+#             fields = ['name', 'description', 'deadline', 'status']
 
-    if request.method == 'POST':
-        form = ProjectAssignmentForm(request.POST)
-        if form.is_valid():
-            employee = form.cleaned_data['user']
-            role = form.cleaned_data['role_in_project']
-            ProjectAssignment.objects.create(project=project, user=employee, role_in_project=role)
-            return redirect('view_project', project_id=project.id)
-    else:
-        form = ProjectAssignmentForm()
+#     if request.method == 'POST':
+#         form = ProjectForm(request.POST)
+#         if form.is_valid():
+#             project = form.save()
+#             return redirect('view_project', project_id=project.id)  # Redirect to the project details page
+#     else:
+#         form = ProjectForm()
 
-    # Get a list of users that can be assigned as employees
-    available_employees = User.objects.filter(groups__name="Employee")
-    return render(request, 'components/admin/project/assign_employee.html', {'project': project, 'form': form, 'available_employees': available_employees})
+#     return render(request, 'components/admin/project/add_project.html', {'form': form})
 
-# Employees log their worked hours on a project
-@login_required
-@user_passes_test(lambda user: user.groups.filter(name__in=['Admin', 'Manager', 'Employee']).exists())
-def log_hours(request, project_assignment_id):
-    """View for employees to log hours worked on a project."""
-    assignment = get_object_or_404(ProjectAssignment, id=project_assignment_id)
-    if request.method == 'POST':
-        hours_worked = request.POST.get('hours_worked')
-        assignment.hours_worked += float(hours_worked)
-        assignment.save()
-        return redirect('view_project', project_id=assignment.project.id)
+# # Admin or Manager can assign a manager to a project
+# @login_required
+# @user_passes_test(is_admin)
+# def assign_manager(request, project_id):
+#     """View for assigning a manager to a project."""
+#     project = get_object_or_404(Project, id=project_id)
+#     if request.method == 'POST':
+#         manager_username = request.POST.get('manager')
+#         manager = get_object_or_404(User, username=manager_username)
+#         assignment = ProjectAssignment.objects.create(project=project, user=manager, role_in_project='Manager')
+#         return redirect('view_project', project_id=project.id)
 
-    return render(request, 'components/admin/project/log_hours.html', {'assignment': assignment})
+#     # Get a list of users that can be assigned as manager
+#     available_managers = User.objects.filter(groups__name="Manager")
+#     return render(request, 'components/admin/project/assign_manager.html', {'project': project, 'available_managers': available_managers})
 
-# Admin and Manager can view project details including overdue status
-@login_required
-@user_passes_test(lambda user: user.groups.filter(name__in=['Admin', 'Manager']).exists())
-def view_project(request, project_id):
-    """View for viewing the project details, including overdue status."""
-    project = get_object_or_404(Project, id=project_id)
-    overdue = project.is_overdue()  # Check if the project is overdue
-    assignments = ProjectAssignment.objects.filter(project=project)
-    return render(request, 'components/admin/project/view_project.html', {'project': project, 'overdue': overdue, 'assignments': assignments})
+# # Admin or Manager can assign employees to a project
+# @login_required
+# @user_passes_test(lambda user: user.groups.filter(name__in=['Admin', 'Manager']).exists())
+# def assign_employee(request, project_id):
+#     """View for assigning an employee to a project."""
+#     project = get_object_or_404(Project, id=project_id)
+    
+#     # Define the form directly in the view
+#     class ProjectAssignmentForm(forms.ModelForm):
+#         class Meta:
+#             model = ProjectAssignment
+#             fields = ['user', 'role_in_project']
 
-# Admin and Manager can view all projects and their status
-@login_required
-@user_passes_test(lambda user: user.groups.filter(name__in=['Admin', 'Manager']).exists())
-def all_projects(request):
-    """View to list all projects with their status."""
-    projects = Project.objects.all()
-    return render(request, 'components/admin/project/all_projects.html', {'projects': projects})
+#     if request.method == 'POST':
+#         form = ProjectAssignmentForm(request.POST)
+#         if form.is_valid():
+#             employee = form.cleaned_data['user']
+#             role = form.cleaned_data['role_in_project']
+#             ProjectAssignment.objects.create(project=project, user=employee, role_in_project=role)
+#             return redirect('view_project', project_id=project.id)
+#     else:
+#         form = ProjectAssignmentForm()
+
+#     # Get a list of users that can be assigned as employees
+#     available_employees = User.objects.filter(groups__name="Employee")
+#     return render(request, 'components/admin/project/assign_employee.html', {'project': project, 'form': form, 'available_employees': available_employees})
+
+# # Employees log their worked hours on a project
+# @login_required
+# @user_passes_test(lambda user: user.groups.filter(name__in=['Admin', 'Manager', 'Employee']).exists())
+# def log_hours(request, project_assignment_id):
+#     """View for employees to log hours worked on a project."""
+#     assignment = get_object_or_404(ProjectAssignment, id=project_assignment_id)
+#     if request.method == 'POST':
+#         hours_worked = request.POST.get('hours_worked')
+#         assignment.hours_worked += float(hours_worked)
+#         assignment.save()
+#         return redirect('view_project', project_id=assignment.project.id)
+
+#     return render(request, 'components/admin/project/log_hours.html', {'assignment': assignment})
+
+# # Admin and Manager can view project details including overdue status
+# @login_required
+# @user_passes_test(lambda user: user.groups.filter(name__in=['Admin', 'Manager']).exists())
+# def view_project(request, project_id):
+#     """View for viewing the project details, including overdue status."""
+#     project = get_object_or_404(Project, id=project_id)
+#     overdue = project.is_overdue()  # Check if the project is overdue
+#     assignments = ProjectAssignment.objects.filter(project=project)
+#     return render(request, 'components/admin/project/view_project.html', {'project': project, 'overdue': overdue, 'assignments': assignments})
+
+# # Admin and Manager can view all projects and their status
+# @login_required
+# @user_passes_test(lambda user: user.groups.filter(name__in=['Admin', 'Manager']).exists())
+# def all_projects(request):
+#     """View to list all projects with their status."""
+#     projects = Project.objects.all()
+#     return render(request, 'components/admin/project/all_projects.html', {'projects': projects})
 
 ''' ------------------------------------------- ATTENDACE AREA ------------------------------------------- '''
 

@@ -23,12 +23,12 @@ admin_patterns = [
     # Leave-related URLs for Admin
     path('leave/requests/', views.view_leave_requests_admin, name='view_leave_requests_admin'),  # Admin view for leave requests
     # Project management URLs for Admin
-    path('projects/', views.project_management, name='project_management'),  # Admin view for managing projects
-    path('project/<int:project_id>/', views.view_project, name='view_project'),  # View a specific project
-    path('project_add/', views.project_view, name='add_project'),  # Add a new project
-    path('project/<int:project_id>/assign_manager/', views.assign_manager, name='assign_manager'),  # Assign a manager to a project
-    path('project/<int:project_id>/assign_employee/', views.assign_employee, name='assign_employee'),  # Assign an employee to a project
-    # Attendance-related URLs for Admin
+   path('projects/', views.project_view, {'action': 'list'}, name='projects_list'),
+path('projects/create/', views.project_view, {'action': 'create'}, name='project_create'),
+path('projects/<int:project_id>/update/', views.project_view, {'action': 'update'}, name='project_update'),
+path('projects/<int:project_id>/delete/', views.project_view, {'action': 'delete'}, name='project_delete'),
+path('projects/<int:project_id>/assign/', views.project_view, {'action': 'assign'}, name='project_assign'),
+
     path('attendance/', views.admin_attendance_view, name='attendance'),  # Admin attendance summary
 ]
 

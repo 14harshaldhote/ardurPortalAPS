@@ -1,0 +1,207 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    {% if not project_id %}
+        <!-- Projects List Section -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-800">Projects</h2>
+                <button onclick="document.getElementById('createProjectForm').scrollIntoView()" 
+                        class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition duration-200">
+                    New Project
+                </button>
+            </div>
+
+            <div class="space-y-4">
+                {% for project in projects %}
+                    <div class="border rounded-lg p-4 hover:bg-gray-50 transition duration-200">
+                        <a href="{% url 'aps_admin:project_view' action='detail' project_id=project.id %}" class="text-blue-600 hover:text-blue-800 text-lg font-medium">
+                            {{ project.name }}
+                        </a>
+                    </div>
+                {% empty %}
+                    <div class="text-center py-8 text-gray-500">
+                        <p>No projects available</p>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Create Project Form -->
+        <div id="createProjectForm" class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-bold text-gray-800 mb-6">Create a New Project</h3>
+            <form method="POST" action="{% url 'aps_admin:project_create' %}">
+                {% csrf_token %}
+                <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-8 space-y-6">
+                    <h2 class="text-3xl font-bold text-gray-800 text-center">Create a New Project</h2>
+            
+                    <div class="space-y-6">
+                        <div class="space-y-4">
+                            <label class="block text-sm font-medium text-gray-700">Project Name</label>
+                            <input type="text" name="name" class="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter project name" required>
+                        </div>
+            
+                        <div class="space-y-4">
+                            <label class="block text-sm font-medium text-gray-700">Description</label>
+                            <textarea name="description" class="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter project description" rows="4" required></textarea>
+                        </div>
+            
+                        <div class="space-y-4">
+                            <label class="block text-sm font-medium text-gray-700">Status</label>
+                            <select name="status" class="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Completed">Completed</option>
+                                <option value="Pending">Pending</option>
+                            </select>
+                        </div>
+            
+                        <div class="space-y-4">
+                            <label class="block text-sm font-medium text-gray-700">Due Date</label>
+                            <input type="date" name="due_date" class="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                        </div>
+            
+                        <div class="space-y-4">
+                            <label class="block text-sm font-medium text-gray-700">Manager</label>
+                            <select name="manager" class="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="">Select Manager</option>
+                                {% for manager in managers %}
+                                    <option value="{{ manager.id }}">{{ manager.username }}</option>
+                                {% empty %}
+                                    <option value="">No managers available</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+            
+                    <div class="flex justify-center">
+                        <button type="submit" class="w-full bg-blue-500 hover:bg-blue-600 text-white py-3 px-4 rounded-lg transition duration-200 text-xl">
+                            Create Project
+                        </button>
+                    </div>
+                </div>
+            </form>
+            
+        </div>
+
+    {% else %}
+        <!-- Project Details Section -->
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6">{{ project.name }}</h2>
+
+            {% if project %}
+                <div class="grid md:grid-cols-2 gap-6 mb-8">
+                    <div class="space-y-4">
+                        <p class="text-gray-600"><span class="font-medium">Description:</span> {{ project.description }}</p>
+                        <p class="text-gray-600"><span class="font-medium">Status:</span> 
+                            <span class="px-2 py-1 rounded-full text-sm 
+                                {% if project.status == 'Completed' %}bg-green-100 text-green-800
+                                {% elif project.status == 'In Progress' %}bg-blue-100 text-blue-800
+                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {{ project.status }}
+                            </span>
+                        </p>
+                        <p class="text-gray-600"><span class="font-medium">Due Date:</span> {{ project.due_date }}</p>
+                    </div>
+
+                    <!-- Assignments Section -->
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <h3 class="text-lg font-semibold mb-4">Team Members</h3>
+                        <div class="space-y-2">
+                            {% for assignment in project.assignments.all %}
+                                <div class="bg-white p-3 rounded-lg shadow-sm">
+                                    <p class="font-medium">{{ assignment.user.username }}</p>
+                                    <p class="text-sm text-gray-600">{{ assignment.role_in_project }}</p>
+                                </div>
+                            {% empty %}
+                                <p class="text-gray-500 text-center">No users assigned yet</p>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Update Project Form -->
+                <div class="bg-gray-50 rounded-lg p-6 mb-6">
+                    <h3 class="text-lg font-semibold mb-4">Update Project</h3>
+                    <form method="POST" action="{% url 'aps_admin:project_view' action='update' project_id=project.id %}" class="space-y-4">
+                        {% csrf_token %}
+                        <div class="space-y-2">
+                            <label class="block text-sm font-medium text-gray-700">Project Name</label>
+                            <input type="text" name="name" class="input-field" value="{{ project.name }}" required>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="block text-sm font-medium text-gray-700">Description</label>
+                            <textarea name="description" class="input-field" required>{{ project.description }}</textarea>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="block text-sm font-medium text-gray-700">Status</label>
+                            <select name="status" class="input-field" required>
+                                <option value="In Progress" {% if project.status == 'In Progress' %}selected{% endif %}>In Progress</option>
+                                <option value="Completed" {% if project.status == 'Completed' %}selected{% endif %}>Completed</option>
+                                <option value="Pending" {% if project.status == 'Pending' %}selected{% endif %}>Pending</option>
+                            </select>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="block text-sm font-medium text-gray-700">Due Date</label>
+                            <input type="date" name="due_date" class="input-field" value="{{ project.due_date }}" required>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="block text-sm font-medium text-gray-700">Manager</label>
+                            <select name="manager" class="input-field">
+                                {% for manager in managers %}
+                                    <option value="{{ manager.id }}" {% if project.manager and project.manager.id == manager.id %}selected{% endif %}>{{ manager.username }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <button type="submit" class="bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-lg transition duration-200">
+                            Update Project
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Assign User Form -->
+                <div class="bg-gray-50 rounded-lg p-6 mb-6">
+                    <h3 class="text-lg font-semibold mb-4">Assign User to Project</h3>
+                    <form method="POST" action="{% url 'aps_admin:project_view' action='assign' project_id=project.id %}" class="space-y-4">
+                        {% csrf_token %}
+                        <div class="space-y-2">
+                            <label class="block text-sm font-medium text-gray-700">User</label>
+                            <select name="user" class="input-field" required>
+                                {% for user in users %}
+                                    <option value="{{ user.id }}">{{ user.username }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="block text-sm font-medium text-gray-700">Role</label>
+                            <select name="role_in_project" class="input-field" required>
+                                <option value="Manager">Manager</option>
+                                <option value="Developer">Developer</option>
+                                <option value="Support">Support</option>
+                                <option value="Appraisal">Appraisal</option>
+                                <option value="Tester">Tester</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-lg transition duration-200">
+                            Assign User
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Delete Project Section -->
+                <div class="bg-red-50 rounded-lg p-6">
+                    <h3 class="text-lg font-semibold text-red-800 mb-4">Delete Project</h3>
+                    <form method="POST" action="{% url 'aps_admin:project_view' action='delete' project_id=project.id %}">
+                        {% csrf_token %}
+                        <button type="submit" name="delete" value="true" 
+                                class="bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-lg transition duration-200"
+                                onclick="return confirm('Are you sure you want to delete this project?')">
+                            Delete Project
+                        </button>
+                    </form>
+                </div>
+            {% endif %}
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

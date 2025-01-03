@@ -422,13 +422,14 @@ class Employee(models.Model):
 
 ''' ------------------------------------------- PROJECT AREA ------------------------------------------- '''
 
-# Project model to store project-related information
+# Project model with embedded assignment information
 class Project(models.Model):
     name = models.CharField(max_length=100)  # Project name
     description = models.TextField()  # Description of the project
     deadline = models.DateField()  # Deadline for the project
     status = models.CharField(max_length=20, choices=[('Completed', 'Completed'), ('In Progress', 'In Progress'), ('Pending', 'Pending')])  # Status of the project
     created_at = models.DateTimeField(auto_now_add=True)  # Time when the project was created
+    users = models.ManyToManyField(User, through='ProjectAssignment', related_name='projects')  # Users assigned to the project
 
     def __str__(self):
         """Return the project name."""
@@ -454,7 +455,6 @@ class ProjectAssignment(models.Model):
     def get_total_hours(self):
         """Calculate total hours worked by a user on a project."""
         return self.hours_worked
-
 
 ''' ------------------------------------------- PERSONAL AREA ------------------------------------------- '''
 
