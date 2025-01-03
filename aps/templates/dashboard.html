@@ -1,27 +1,30 @@
 {% extends 'base.html' %}
 {% block title %}Dashboard - APS Portal{% endblock %}
 {% block content %}
-<div class="min-h-screen p-6 ">
-    <div class="container mx-auto">
+<div class="min-h-screen  py-6 px-4 sm:px-6 lg:px-8">
+
+    <!-- Container for content -->
+    <div class="max-w-7xl mx-auto">
 
         <!-- Header Section -->
-        <div class="flex items-center justify-between mb-8">
-            <p class="text-md font-thin text-gray-800">Let's Make Today Amazing!</p>
+        <div class="flex items-center justify-between mb-8  p-6 rounded-lg shadow-lg">
+            <div>
+                <p class="text-xl font-thin text-gray-800">Let's Make Today Amazing!</p>
+            </div>
             <div class="flex items-center space-x-4">
-                <span class="text-lg text-gray-600">{{ current_date|date:"F d, Y" }}</span>
                 <span class="bg-green-500 text-white px-4 py-2 rounded-full text-sm">Online</span>
             </div>
         </div>
 
         <!-- Quick Stats Cards Section -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mb-8">
             {% include 'card/tasks_card.html' %}
             {% include 'card/attendance_card.html' %}
             {% include 'card/break_card.html' %}
         </div>
 
         <!-- Team Updates and Global Updates Section -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <!-- Team Updates Card -->
             {% include 'card/team_update_card.html' %}
 
