@@ -23,11 +23,12 @@ admin_patterns = [
     # Leave-related URLs for Admin
     path('leave/requests/', views.view_leave_requests_admin, name='view_leave_requests_admin'),  # Admin view for leave requests
     # Project management URLs for Admin
-   path('projects/', views.project_view, {'action': 'list'}, name='projects_list'),
-path('projects/create/', views.project_view, {'action': 'create'}, name='project_create'),
-path('projects/<int:project_id>/update/', views.project_view, {'action': 'update'}, name='project_update'),
-path('projects/<int:project_id>/delete/', views.project_view, {'action': 'delete'}, name='project_delete'),
-path('projects/<int:project_id>/assign/', views.project_view, {'action': 'assign'}, name='project_assign'),
+    path('projects/', views.project_view, {'action': 'list'}, name='projects_list'),
+    path('projects/create/', views.project_view, {'action': 'create'}, name='project_create'),
+    path('projects/<int:project_id>/update/', views.project_view, {'action': 'update'}, name='project_update'),
+    path('projects/<int:project_id>/delete/', views.project_view, {'action': 'delete'}, name='project_delete'),
+    path('projects/<int:project_id>/assign/', views.project_view, {'action': 'assign'}, name='project_assign'),
+    path('projects/<int:project_id>/', views.project_view, {'action': 'detail'}, name='project_detail'),
 
     path('attendance/', views.admin_attendance_view, name='attendance'),  # Admin attendance summary
 ]

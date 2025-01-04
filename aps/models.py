@@ -423,11 +423,19 @@ class Employee(models.Model):
 ''' ------------------------------------------- PROJECT AREA ------------------------------------------- '''
 
 # Project model with embedded assignment information
+from django.db import models
+from django.contrib.auth.models import User
+from django.utils import timezone
+
+
 class Project(models.Model):
     name = models.CharField(max_length=100)  # Project name
     description = models.TextField()  # Description of the project
     deadline = models.DateField()  # Deadline for the project
-    status = models.CharField(max_length=20, choices=[('Completed', 'Completed'), ('In Progress', 'In Progress'), ('Pending', 'Pending')])  # Status of the project
+    status = models.CharField(
+        max_length=20, 
+        choices=[('Completed', 'Completed'), ('In Progress', 'In Progress'), ('Pending', 'Pending')]
+    )  # Status of the project
     created_at = models.DateTimeField(auto_now_add=True)  # Time when the project was created
     users = models.ManyToManyField(User, through='ProjectAssignment', related_name='projects')  # Users assigned to the project
 
@@ -439,14 +447,22 @@ class Project(models.Model):
         """Check if the project is overdue based on the deadline."""
         return self.deadline < timezone.now().date() and self.status != 'Completed'
 
+    @classmethod
+    def is_valid_status(cls, status):
+        """Check if the status is valid."""
+        return status in dict(cls._meta.get_field('status').choices)
 
-# ProjectAssignment model to assign users to projects
+
 class ProjectAssignment(models.Model):
     project = models.ForeignKey(Project, on_delete=models.CASCADE)  # The project being assigned
     user = models.ForeignKey(User, on_delete=models.CASCADE)  # The user being assigned to the project
     assigned_date = models.DateField(auto_now_add=True)  # Date of assignment
     hours_worked = models.FloatField(default=0.0)  # Total hours worked by the user on the project
-    role_in_project = models.CharField(max_length=50, choices=[('Manager', 'Manager'), ('Developer', 'Developer'), ('Support', 'Support'), ('Apprisal', 'Apprisal'), ('Tester', 'Tester')])  # Role of the user in the project
+    role_in_project = models.CharField(
+        max_length=50, 
+        choices=[('Manager', 'Manager'), ('Developer', 'Developer'), ('Support', 'Support'), 
+                 ('Apprisal', 'Apprisal'), ('Tester', 'Tester')]
+    )  # Role of the user in the project
 
     def __str__(self):
         """Return a string representation of the project assignment."""
