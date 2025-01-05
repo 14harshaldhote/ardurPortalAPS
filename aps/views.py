@@ -4,7 +4,7 @@ from .models import (UserSession, ITSupportTicket, Attendance, SystemError,
                     UserComplaint, FailedLoginAttempt, PasswordChange, 
                     RoleAssignmentAudit, FeatureUsage, SystemUsage, 
                     Timesheet, Project, ProjectAssignment,
-                    Message, Chat)
+                    Message, Chat,UserDetails)
 from django.db.models import Q
 from datetime import datetime, timedelta, date
 from django.utils import timezone
@@ -200,6 +200,146 @@ def dashboard_view(request):
     }
 
     return render(request, 'dashboard.html', context)
+
+''' --------------------------------------------------------- USER DETAILS AREA --------------------------------------------------------- '''
+
+# aps/views.py
+
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.contrib import messages
+from django.http import HttpResponseForbidden
+from .models import UserDetails
+from django.contrib.auth.models import User
+from datetime import datetime
+
+# Permission check functions
+def is_hr(user):
+    return user.groups.filter(name='HR').exists()
+
+def is_manager(user):
+    return user.groups.filter(name='Manager').exists()
+
+def is_employee(user):
+    return user.groups.filter(name='Employee').exists()
+
+# HR Views
+@login_required
+@user_passes_test(is_hr)
+def hr_dashboard(request):
+    """HR Dashboard to see all users and perform actions"""
+    users = User.objects.all()
+    return render(request, 'components/hr/hr_dashboard.html', {
+        'users': users,
+        'role': 'HR'
+    })
+
+@login_required
+@user_passes_test(is_hr)
+def hr_user_detail(request, user_id):
+    """HR View to view and edit user details"""
+    try:
+        user_detail = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        raise Http404("User not found")
+    
+    if request.method == 'POST':
+        try:
+            # Print the POST data to debug
+            print(request.POST)
+            
+            # Direct update from POST data
+            user_detail.first_name = request.POST.get('first_name', user_detail.first_name)
+            user_detail.last_name = request.POST.get('last_name', user_detail.last_name)
+            user_detail.job_description = request.POST.get('job_description', user_detail.job_description)
+            user_detail.employment_status = request.POST.get('employment_status', user_detail.employment_status)
+            user_detail.work_location = request.POST.get('work_location', user_detail.work_location)
+            user_detail.contact_number_primary = request.POST.get('contact_number_primary', user_detail.contact_number_primary)
+            user_detail.personal_email = request.POST.get('personal_email', user_detail.personal_email)
+            
+            # Handle date fields
+            dob = request.POST.get('dob')
+            if dob:
+                user_detail.dob = datetime.strptime(dob, '%Y-%m-%d')
+            
+            hire_date = request.POST.get('hire_date')
+            if hire_date:
+                user_detail.hire_date = datetime.strptime(hire_date, '%Y-%m-%d')
+            
+            start_date = request.POST.get('start_date')
+            if start_date:
+                user_detail.start_date = datetime.strptime(start_date, '%Y-%m-%d')
+            
+            # Other fields
+            user_detail.blood_group = request.POST.get('blood_group', user_detail.blood_group)
+            user_detail.gender = request.POST.get('gender', user_detail.gender)
+            user_detail.panno = request.POST.get('panno', user_detail.panno)
+            user_detail.aadharno = request.POST.get('aadharno', user_detail.aadharno)
+            
+            # Emergency contact details
+            user_detail.emergency_contact_name = request.POST.get('emergency_contact_name', user_detail.emergency_contact_name)
+            user_detail.emergency_contact_primary = request.POST.get('emergency_contact_primary', user_detail.emergency_contact_primary)
+            user_detail.emergency_contact_address = request.POST.get('emergency_contact_address', user_detail.emergency_contact_address)
+            
+            # Save the user details
+            # Save the user details
+            try:
+                user_detail.save()
+                print("User details saved successfully.")
+            except Exception as e:
+                print(f"Error saving user details: {e}")
+
+            return redirect('hr_dashboard')
+
+            
+        except Exception as e:
+            messages.error(request, f'Error updating user details: {str(e)}')
+    
+    return render(request, 'components/hr/hr_user_detail.html', {
+        'user_detail': user_detail,
+        'role': 'HR'
+    })
+
+# Manager Views
+@login_required
+@user_passes_test(is_manager)
+def manager_dashboard(request):
+    """Manager Dashboard to view team members"""
+    manager_group = request.user.groups.first()
+    team_members = UserDetails.objects.filter(group=manager_group).exclude(user=request.user)
+    
+    return render(request, 'components/manager/manager_dashboard.html', {
+        'team_members': team_members,
+        'role': 'Manager',
+        'user_detail': request.user.userdetails,  # Ensure this is available
+    })
+
+@login_required
+@user_passes_test(is_manager)
+def manager_user_detail(request, user_id):
+    """Manager view to see (but not edit) user details"""
+    user_detail = get_object_or_404(UserDetails, id=user_id)
+    
+    return render(request, 'users/manager_user_detail.html', {
+        'user_detail': user_detail,
+        'role': 'Manager'
+    })
+
+# Employee Views
+@login_required
+@user_passes_test(is_employee)
+def employee_profile(request):
+    """Employee Profile to view their own details"""
+    try:
+        user_detail = UserDetails.objects.get(user=request.user)
+    except UserDetails.DoesNotExist:
+        messages.error(request, 'Profile not found.')
+        return redirect('home')
+    
+    return render(request, 'users/employee_profile.html', {
+        'user_detail': user_detail,
+        'role': 'Employee'
+    })
 
 
 ''' --------------------------------------------------------- ADMIN AREA --------------------------------------------------------- '''

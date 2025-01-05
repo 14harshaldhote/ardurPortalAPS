@@ -1,0 +1,19 @@
+<!-- manager_dashboard.html -->
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>Manager Dashboard</h1>
+
+{% if team_members %}
+    <ul>
+    {% for member in team_members %}
+        <li>{{ member.first_name }} {{ member.last_name }} - {{ member.job_description }} 
+            <a href="{% url 'manager_user_detail' member.id %}">View Details</a>
+        </li>
+    {% endfor %}
+    </ul>
+{% else %}
+    <p>No team members found.</p>
+{% endif %}
+
+{% endblock %}

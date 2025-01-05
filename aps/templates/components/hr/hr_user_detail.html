@@ -1,0 +1,143 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<!-- Container for the entire page -->
+<div class="max-w-7xl mx-auto p-8 bg-white shadow-lg rounded-lg">
+
+    <!-- Title Section -->
+    <div class="mb-10">
+        <h1 class="text-4xl font-bold text-gray-800">Edit User Details</h1>
+        <p class="mt-2 text-lg text-gray-600">Update the user details and save the changes.</p>
+    </div>
+
+    <!-- Form Container -->
+    <div class="bg-gray-50 p-6 rounded-lg shadow-md">
+        <form method="post" class="space-y-10">
+            {% csrf_token %}
+            
+            <!-- First and Last Name Section -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div class="space-y-4">
+                    <label for="first_name" class="block text-sm font-semibold text-gray-700">First Name:</label>
+                    <input type="text" name="first_name" value="{{ user_detail.first_name }}" required class="w-full p-4 mt-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <div class="space-y-4">
+                    <label for="last_name" class="block text-sm font-semibold text-gray-700">Last Name:</label>
+                    <input type="text" name="last_name" value="{{ user_detail.last_name }}" required class="w-full p-4 mt-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+            </div>
+
+            <!-- Job and Employment Info Section -->
+            <div class="space-y-6">
+                <div class="space-y-4">
+                    <label for="job_description" class="block text-sm font-semibold text-gray-700">Job Description:</label>
+                    <input type="text" name="job_description" value="{{ user_detail.job_description }}" required class="w-full p-4 mt-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div class="space-y-4">
+                        <label for="employment_status" class="block text-sm font-semibold text-gray-700">Employment Status:</label>
+                        <input type="text" name="employment_status" value="{{ user_detail.employment_status }}" required class="w-full p-4 mt-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+
+                    <div class="space-y-4">
+                        <label for="work_location" class="block text-sm font-semibold text-gray-700">Work Location:</label>
+                        <input type="text" name="work_location" value="{{ user_detail.work_location }}" required class="w-full p-4 mt-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contact Details Section -->
+            <div class="space-y-6">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div class="space-y-4">
+                        <label for="contact_number_primary" class="block text-sm font-semibold text-gray-700">Contact Number:</label>
+                        <input type="text" name="contact_number_primary" value="{{ user_detail.contact_number_primary }}" required class="w-full p-4 mt-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+
+                    <div class="space-y-4">
+                        <label for="personal_email" class="block text-sm font-semibold text-gray-700">Personal Email:</label>
+                        <input type="email" name="personal_email" value="{{ user_detail.personal_email }}" required class="w-full p-4 mt-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Date of Birth, Hire Date, and Start Date Section -->
+            <div class="space-y-6">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div class="space-y-4">
+                        <label for="dob" class="block text-sm font-semibold text-gray-700">Date of Birth:</label>
+                        <input type="date" name="dob" value="{{ user_detail.dob }}" required class="w-full p-4 mt-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+
+                    <div class="space-y-4">
+                        <label for="hire_date" class="block text-sm font-semibold text-gray-700">Hire Date:</label>
+                        <input type="date" name="hire_date" value="{{ user_detail.hire_date }}" required class="w-full p-4 mt-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+
+                    <div class="space-y-4">
+                        <label for="start_date" class="block text-sm font-semibold text-gray-700">Start Date:</label>
+                        <input type="date" name="start_date" value="{{ user_detail.start_date }}" required class="w-full p-4 mt-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Blood Group, Gender, and Other Details Section -->
+            <div class="space-y-6">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div class="space-y-4">
+                        <label for="blood_group" class="block text-sm font-semibold text-gray-700">Blood Group:</label>
+                        <input type="text" name="blood_group" value="{{ user_detail.blood_group }}" required class="w-full p-4 mt-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+
+                    <div class="space-y-4">
+                        <label for="gender" class="block text-sm font-semibold text-gray-700">Gender:</label>
+                        <input type="text" name="gender" value="{{ user_detail.gender }}" required class="w-full p-4 mt-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+            </div>
+
+            <!-- PAN and Aadhar Details Section -->
+            <div class="space-y-6">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div class="space-y-4">
+                        <label for="panno" class="block text-sm font-semibold text-gray-700">PAN Number:</label>
+                        <input type="text" name="panno" value="{{ user_detail.panno }}" required class="w-full p-4 mt-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+
+                    <div class="space-y-4">
+                        <label for="aadharno" class="block text-sm font-semibold text-gray-700">Aadhar Number:</label>
+                        <input type="text" name="aadharno" value="{{ user_detail.aadharno }}" required class="w-full p-4 mt-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Emergency Contact Section -->
+            <div class="space-y-6">
+                <h3 class="text-2xl font-semibold text-gray-800 mb-6">Emergency Contact</h3>
+                <div class="space-y-4">
+                    <label for="emergency_contact_name" class="block text-sm font-semibold text-gray-700">Emergency Contact Name:</label>
+                    <input type="text" name="emergency_contact_name" value="{{ user_detail.emergency_contact_name }}" required class="w-full p-4 mt-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <div class="space-y-4">
+                    <label for="emergency_contact_primary" class="block text-sm font-semibold text-gray-700">Emergency Contact Number:</label>
+                    <input type="text" name="emergency_contact_primary" value="{{ user_detail.emergency_contact_primary }}" required class="w-full p-4 mt-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <div class="space-y-4">
+                    <label for="emergency_contact_address" class="block text-sm font-semibold text-gray-700">Emergency Contact Address:</label>
+                    <input type="text" name="emergency_contact_address" value="{{ user_detail.emergency_contact_address }}" required class="w-full p-4 mt-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+            </div>
+
+            <!-- Submit Button Section -->
+            <div class="mt-8 flex justify-end">
+                <button type="submit" class="w-full sm:w-auto bg-blue-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-blue-700 transition duration-200">Update Details</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}

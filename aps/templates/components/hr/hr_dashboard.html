@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="mb-8">
+        <h1 class="text-2xl font-bold mb-6">HR Dashboard</h1>
+        
+        <!-- Search Form -->
+        <form method="GET" class="flex gap-4 mb-6">
+            <div class="flex-1">
+                <input 
+                    type="text" 
+                    name="search" 
+                    placeholder="Search by name, email, or job description..." 
+                    value="{{ request.GET.search }}"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                >
+            </div>
+            <button type="submit" class="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+                Search
+            </button>
+            {% if request.GET.search %}
+                <a href="{% url 'aps_hr:hr_dashboard' %}" class="px-6 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors">
+                    Clear
+                </a>
+            {% endif %}
+        </form>
+
+        <!-- Filters -->
+        <div class="flex gap-4 mb-6">
+            <select name="department" class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+                <option value="">All Departments</option>
+                <option value="IT" {% if request.GET.department == 'IT' %}selected{% endif %}>IT</option>
+                <option value="HR" {% if request.GET.department == 'HR' %}selected{% endif %}>HR</option>
+                <option value="Finance" {% if request.GET.department == 'Finance' %}selected{% endif %}>Finance</option>
+            </select>
+            
+            <select name="status" class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+                <option value="">All Status</option>
+                <option value="Active" {% if request.GET.status == 'Active' %}selected{% endif %}>Active</option>
+                <option value="Inactive" {% if request.GET.status == 'Inactive' %}selected{% endif %}>Inactive</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Results Count -->
+    {% if users %}
+        <p class="text-gray-600 mb-4">Showing {{ users|length }} results {% if request.GET.search %}for "{{ request.GET.search }}"{% endif %}</p>
+    {% endif %}
+
+    <!-- Users List -->
+    {% if users %}
+        <div class="grid gap-4">
+            {% for user in users %}
+                <div class="bg-white p-4 rounded-lg shadow hover:shadow-md transition-shadow">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <h2 class="text-lg font-semibold">{{ user.first_name }} {{ user.last_name }}</h2>
+                            <p class="text-gray-600">{{ user.job_description }}</p>
+                            <p class="text-sm text-gray-500">{{ user.work_location }}</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <a href="{% url 'aps_hr:hr_user_detail' user_id=user.id %}" 
+                               class="py-2 px-4 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors">
+                                View Details
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="text-center py-8">
+            <p class="text-gray-600">No users found {% if request.GET.search %}for "{{ request.GET.search }}"{% endif %}</p>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,27 +1,10 @@
 from django.utils import timezone
-from django.contrib.auth.models import User
+from django.contrib.auth.models import User, Group
 import pytz
 from django.db import models
 from django.utils.timezone import now
-from datetime import timedelta
 
-from django.db import models
-from django.utils import timezone
-from datetime import timedelta
 
-from django.utils import timezone
-from datetime import timedelta
-
-from django.db import models
-from django.contrib.auth.models import User
-from django.utils import timezone
-from datetime import timedelta
-
-# User session model to track login, logout, working hours, and idle time
-from django.db import models
-from django.contrib.auth.models import User
-from django.utils import timezone
-import pytz
 
 IST_TIMEZONE = pytz.timezone('Asia/Kolkata')
 
@@ -269,96 +252,7 @@ class Attendance(models.Model):
               f"status: {self.status}, clock-in: {self.clock_in_time}, "
               f"clock-out: {self.clock_out_time}, total hours: {self.total_hours}")
 
-# from django.db import models
-# from django.contrib.auth.models import User
-
-# class Attendance(models.Model):
-#     STATUS_CHOICES = [
-#         ('Present', 'Present'),
-#         ('Absent', 'Absent'), 
-#         ('Pending', 'Pending'),
-#         ('On Leave', 'On Leave'),
-#         ('Work From Home', 'Work From Home'),
-#     ]
-
-#     user = models.ForeignKey(User, on_delete=models.CASCADE)
-#     date = models.DateField()
-#     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
-#     clock_in_time = models.TimeField(null=True, blank=True)
-#     clock_out_time = models.TimeField(null=True, blank=True)
-#     total_hours = models.DurationField(null=True, blank=True)
-#     leave_request = models.ForeignKey(
-#         'LeaveRequest', on_delete=models.SET_NULL, null=True, blank=True, 
-#         related_name='attendances'
-#     )
-
-#     def calculate_attendance(self):
-#         print(f"Calculating attendance for user: {self.user.username}, date: {self.date}")
-
-#         try:
-#             # If the status is 'On Leave', don't calculate clock-in/out
-#             if self.status == 'On Leave':
-#                 self.clock_in_time = None
-#                 self.clock_out_time = None
-#                 self.total_hours = None
-#                 return
-
-#             # If we already have clock-in time and it's not from a session calculation
-#             if self.clock_in_time and self.status == 'Present':
-#                 print(f"Using existing clock-in time for {self.user.username}")
-#                 return
-
-#             # Get UserSessions for the user on the given date
-#             user_sessions = UserSession.objects.filter(
-#                 user=self.user,
-#                 login_time__date=self.date
-#             ).order_by('login_time')
-
-#             print(f"Found {user_sessions.count()} session(s) for user {self.user.username} on {self.date}")
-
-#             if user_sessions.exists():
-#                 first_session = user_sessions.first()
-#                 last_session = user_sessions.last()
-
-#                 # Only update if we don't already have clock-in time
-#                 if not self.clock_in_time and first_session.login_time:
-#                     self.clock_in_time = first_session.login_time
-#                     self.status = 'Present'
-
-#                 # Update clock-out and total hours if we have a logout time
-#                 if last_session.logout_time:
-#                     self.clock_out_time = last_session.logout_time
-#                     if self.clock_in_time:
-#                         self.total_hours = last_session.logout_time - self.clock_in_time
-
-#             # Don't override status if it's already Present
-#             elif self.status != 'Present':
-#                 self.status = 'Pending'
-#                 if not self.clock_in_time:  # Only clear if not manually set
-#                     self.clock_in_time = None
-#                     self.clock_out_time = None
-#                     self.total_hours = None
-
-#         except Exception as e:
-#             print(f"Error calculating attendance: {e}")
-#             if self.status != 'Present':  # Don't override if already Present
-#                 self.status = 'Pending'
-
-#     def calculate_total_hours(self):
-#         """Calculate the total hours worked based on clock-in and clock-out times."""
-#         if self.clock_in_time and self.clock_out_time:
-#             self.total_hours = self.clock_out_time - self.clock_in_time
-#             self.save()
-
-#     def save(self, *args, **kwargs):
-#         print(f"Saving attendance for user: {self.user.username}, date: {self.date}")
-#         self.calculate_attendance()
-#         super().save(*args, **kwargs)
-#         print(f"Attendance saved for user: {self.user.username}, date: {self.date}, "
-#               f"status: {self.status}, clock-in: {self.clock_in_time}, "
-#               f"clock-out: {self.clock_out_time}, total hours: {self.total_hours}")
-
-'''---------- IT SUPPORT AREA ----------'''
+'''-------------------------------------------- IT SUPPORT AREA ---------------------------------------'''
 
 
 # IT Support Ticket model to track and manage IT support requests
@@ -417,15 +311,38 @@ class Employee(models.Model):
         """Return a string representation of the employee."""
         return f"{self.user.username} - {', '.join([group.name for group in self.user.groups.all()])}"
     
+''' ------------------------------------------- PROFILE AREA ------------------------------------------- '''
 
+class UserDetails(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+    dob = models.DateField(null=True, blank=True)
+    blood_group = models.CharField(max_length=10, null=True, blank=True)
+    hire_date = models.DateField(null=True, blank=True)
+    gender = models.CharField(max_length=10, choices=[('Male', 'Male'), ('Female', 'Female'), ('Other', 'Other')], null=True, blank=True)
+    panno = models.CharField(max_length=20, default="UNKNOWN")
+    job_description = models.CharField(max_length=100, default="Not Assigned")
+    employment_status = models.CharField(max_length=50)
+    emergency_contact_address = models.TextField(default="Unknown")
+    emergency_contact_primary = models.CharField(max_length=15, default="0000000000")
+    emergency_contact_name = models.CharField(max_length=100, default="Unknown")
+    start_date = models.DateField(null=True, blank=True)
+    work_location = models.CharField(null=True, max_length=100)
+    contact_number_primary = models.CharField(max_length=15, null=True, blank=True, default="0000000000")
+    personal_email = models.EmailField(default="not_provided@example.com")
+    aadharno = models.CharField(max_length=12, null=True, blank=True, default="UNKNOWN")
+    group = models.ForeignKey(Group, on_delete=models.SET_NULL, null=True, blank=True)
 
+    def __str__(self):
+        return f'{self.first_name} {self.last_name}'
+
+    def full_name(self):
+        return f"{self.first_name} {self.last_name}"
 
 ''' ------------------------------------------- PROJECT AREA ------------------------------------------- '''
 
 # Project model with embedded assignment information
-from django.db import models
-from django.contrib.auth.models import User
-from django.utils import timezone
 
 
 class Project(models.Model):
@@ -472,7 +389,7 @@ class ProjectAssignment(models.Model):
         """Calculate total hours worked by a user on a project."""
         return self.hours_worked
 
-''' ------------------------------------------- PERSONAL AREA ------------------------------------------- '''
+''' ------------------------------------------- TRACK AREA ------------------------------------------- '''
 
 
 # FailedLoginAttempt model to track failed login attempts
@@ -554,12 +471,8 @@ class UserComplaint(models.Model):
         return f"Complaint by {self.employee.user.username} - Status: {self.status}"
 
 
-''' ----------------- TIMESHEET AREA ----------------- '''
+''' ------------------------------------------------- TIMESHEET AREA --------------------------------------------------- '''
 
-
-
-from django.db import models
-from django.contrib.auth.models import User
 
 class Timesheet(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='timesheets')
@@ -584,92 +497,7 @@ class Timesheet(models.Model):
         ordering = ['-week_start_date']
 
 
-""" ------------------ LEAVE AREA ------------------ """
-# from django.db import models
-# from django.contrib.auth.models import User
-# from django.utils import timezone
-
-# from django.db import models
-# from django.contrib.auth.models import User
-# from django.utils import timezone
-
-# class Leave(models.Model):
-#     LEAVE_TYPES = [
-#         ('Sick Leave', 'Sick Leave'),
-#         ('Casual Leave', 'Casual Leave'),
-#         ('Earned Leave', 'Earned Leave'),
-#         ('Loss of Pay', 'Loss of Pay'),
-#     ]
-    
-#     STATUS_CHOICES = [
-#         ('Pending', 'Pending'),
-#         ('Approved', 'Approved'),
-#         ('Rejected', 'Rejected'),
-#     ]
-
-#     user = models.ForeignKey(User, on_delete=models.CASCADE)
-#     leave_type = models.CharField(max_length=50, choices=LEAVE_TYPES)
-#     start_date = models.DateField()
-#     end_date = models.DateField()
-#     leave_days = models.IntegerField(null=True, blank=True)
-#     reason = models.TextField()
-#     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
-#     approver = models.ForeignKey(
-#         User, related_name='leave_approvals', on_delete=models.SET_NULL, null=True, blank=True
-#     )
-#     created_at = models.DateTimeField(auto_now_add=True)
-#     updated_at = models.DateTimeField(auto_now=True)
-
-#     def __str__(self):
-#         return f"Leave Request by {self.user.username} for {self.leave_type}"
-
-#     def calculate_leave_days(self):
-#         if self.start_date and self.end_date:
-#             self.leave_days = (self.end_date - self.start_date).days + 1
-#             return self.leave_days
-
-#     def save(self, *args, **kwargs):
-#         if not self.leave_days:
-#             self.leave_days = self.calculate_leave_days()
-#         super().save(*args, **kwargs)
-
-#     @classmethod
-#     def get_leave_balance(cls, user):
-#         """Calculate leave balance dynamically"""
-#         TOTAL_LEAVES = 18  # Annual leave allocation, adjust as necessary
-
-#         # Get approved leaves
-#         approved_leaves = cls.objects.filter(
-#             user=user,
-#             status='Approved',
-#             start_date__year=timezone.now().year
-#         ).aggregate(
-#             total_days=models.Sum('leave_days')
-#         )['total_days'] or 0
-
-#         # Get pending leaves
-#         pending_leaves = cls.objects.filter(
-#             user=user,
-#             status='Pending',
-#             start_date__year=timezone.now().year
-#         ).aggregate(
-#             total_days=models.Sum('leave_days')
-#         )['total_days'] or 0
-
-#         return {
-#             'total_leave': TOTAL_LEAVES,
-#             'consumed_leave': approved_leaves,
-#             'pending_leave': pending_leaves,
-#             'available_leave': TOTAL_LEAVES - approved_leaves - pending_leaves
-#         }
-
-#     @classmethod
-#     def can_apply_leave(cls, user, requested_days):
-#         """Check if user can apply for leave"""
-#         balance = cls.get_leave_balance(user)
-#         return balance['available_leave'] >= requested_days
-
-'''-------------------- CHAT AREA -------------------'''
+'''------------------------------------------------ CHAT AREA ---------------------------------------'''
 
 
 class Chat(models.Model):

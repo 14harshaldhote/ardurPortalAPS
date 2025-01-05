@@ -43,7 +43,9 @@ employee_patterns = [
     path('timesheet/', views.timesheet_view, name='timesheet'),  # View timesheet for employee
     # Leave-related URLs for Employee
     path('leave/', views.leave_view, name='leave_view'),  # Employee leave dashboard
-   ]
+   
+    path('employee/profile/', views.employee_profile, name='employee_profile'),
+]
 
 # HR specific URLs under 'portal/hr/'
 hr_patterns = [
@@ -52,6 +54,10 @@ hr_patterns = [
     path('leave/<int:leave_id>/<str:action>/', views.manage_leave_request_hr, name='manage_leave_hr'),
 # Attendance-related URLs for HR
     path('attendance/', views.hr_attendance_view, name='attendance'),  # HR attendance summary
+
+    path('hr/dashboard/', views.hr_dashboard, name='hr_dashboard'),
+    path('user/<int:user_id>/', views.hr_user_detail, name='hr_user_detail'),
+
 ]
 
 # Manager-specific URLs under 'portal/manager/'
@@ -61,6 +67,10 @@ manager_patterns = [
     path('projects/create/', views.manager_project_view, {'action': 'create'}, name='project_create'),  # Create project
     path('projects/update/<int:project_id>/', views.manager_project_view, {'action': 'update'}, name='project_update'),  # Update project
     path('projects/detail/<int:project_id>/', views.manager_project_view, {'action': 'detail'}, name='project_detail'),  # View project details
+    
+    path('manager/dashboard/', views.manager_dashboard, name='manager_dashboard'),
+    path('manager/user/<int:user_id>/', views.manager_user_detail, name='manager_user_detail'),
+
 
 
     path('leave/requests/', views.view_leave_requests_hr, name='view_leave_requests_manager'),
