@@ -849,6 +849,7 @@ def project_view(request, action=None, project_id=None):
             'assignments': assignments,
             'project_id': project_id,  # Add this to ensure template knows we're in detail view
             'is_overdue': project.is_overdue() if hasattr(project, 'is_overdue') else False,
+
         }
         return render(request, 'components/admin/project_view.html', context)
     
@@ -973,6 +974,152 @@ def project_view(request, action=None, project_id=None):
 
     return redirect('aps_admin:project_list', action="list")
 
+@login_required
+@user_passes_test(is_manager)
+def manager_project_view(request, action=None, project_id=None):
+    """Manager view for managing projects."""
+    
+    # Get all managers and employees
+    managers = User.objects.filter(groups__name='Manager')
+    employees = User.objects.filter(groups__name='Employee')
+
+    # Action to list all projects
+    if action == "list":
+        # Get the current manager's projects
+        assignments = ProjectAssignment.objects.filter(user=request.user, role_in_project='Manager')
+        projects = [assignment.project for assignment in assignments]
+        
+        return render(request, 'components/manager/project_view.html', {
+            'projects': projects,
+            'managers': managers,
+            'employees': employees
+        })
+
+
+    # Action to view project details
+    elif action == "detail" and project_id:
+        project = get_object_or_404(Project, id=project_id)
+        assignments = ProjectAssignment.objects.filter(project=project)
+        context = {
+            'project': project,
+            'assignments': assignments,
+        }
+        return render(request, 'components/manager/project_view.html', context)
+
+    # Action to create a new project
+    elif action == "create":
+        if request.method == 'POST':
+            try:
+                # Extract form data from request.POST
+                name = request.POST.get('name')
+                description = request.POST.get('description')
+                due_date = request.POST.get('due_date')
+                
+                # Create the project first
+                project = Project.objects.create(
+                    name=name,
+                    description=description,
+                    deadline=due_date,
+                    status='Not Started'  # Set a default status
+                )
+                
+                # Assign the manager if selected
+                manager_id = request.POST.get('manager')
+                if manager_id:
+                    try:
+                        manager = User.objects.get(id=manager_id)
+                        ProjectAssignment.objects.create(
+                            project=project,
+                            user=manager,
+                            role_in_project='Manager'
+                        )
+                    except User.DoesNotExist:
+                        messages.warning(request, "Selected manager not found.")
+                
+                # Handle employee assignments
+                employee_ids = request.POST.getlist('employees')  # Get selected employees
+                for employee_id in employee_ids:
+                    try:
+                        employee = User.objects.get(id=employee_id)
+                        ProjectAssignment.objects.create(
+                            project=project,
+                            user=employee,
+                            role_in_project='Employee'
+                        )
+                    except User.DoesNotExist:
+                        messages.warning(request, f"Employee with ID {employee_id} not found.")
+
+                messages.success(request, "Project created successfully!")
+                return redirect('aps_manager:project_detail', project_id=project.id)
+            
+            except Exception as e:
+                messages.error(request, f"Error creating project: {str(e)}")
+                return redirect('aps_manager:project_list')
+
+        # GET request - show the creation form
+        return render(request, 'components/manager/project_view.html', {
+            'managers': managers,
+            'employees': employees,
+        })
+
+    # Action to update an existing project
+    elif action == "update" and project_id:
+        project = get_object_or_404(Project, id=project_id)
+
+        if request.method == 'POST':
+            try:
+                # Update project fields from request.POST
+                project.name = request.POST.get('name', project.name)
+                project.description = request.POST.get('description', project.description)
+                project.status = request.POST.get('status', project.status)
+                project.deadline = request.POST.get('deadline', project.deadline)
+                project.save()
+
+                # Update assignments - first delete existing assignments
+                ProjectAssignment.objects.filter(project=project).delete()
+                
+                # Recreate manager assignment
+                manager_id = request.POST.get('manager')
+                if manager_id:
+                    try:
+                        manager = User.objects.get(id=manager_id)
+                        ProjectAssignment.objects.create(
+                            project=project,
+                            user=manager,
+                            role_in_project='Manager'
+                        )
+                    except User.DoesNotExist:
+                        messages.warning(request, "Manager not found.")
+                
+                # Recreate employee assignments
+                employee_ids = request.POST.getlist('employees')  # Get list of selected employees
+                for employee_id in employee_ids:
+                    try:
+                        employee = User.objects.get(id=employee_id)
+                        ProjectAssignment.objects.create(
+                            project=project,
+                            user=employee,
+                            role_in_project='Employee'
+                        )
+                    except User.DoesNotExist:
+                        messages.warning(request, f"Employee with ID {employee_id} not found.")
+
+
+                messages.success(request, "Project updated successfully!")
+                return redirect('aps_manager:project_detail', project_id=project.id)
+
+            except Exception as e:
+                messages.error(request, f"Error updating project: {str(e)}")
+                return redirect('aps_manager:project_detail', project_id=project.id)
+
+        # GET request - show the update form
+        return render(request, 'components/manager/project_view.html', {
+            'project': project,
+            'managers': managers,
+            'employees': employees,
+        })
+
+    return redirect('aps_manager:project_list')
 
 # @login_required
 # @user_passes_test(is_admin)

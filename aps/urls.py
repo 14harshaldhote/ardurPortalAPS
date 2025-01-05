@@ -57,6 +57,11 @@ hr_patterns = [
 # Manager-specific URLs under 'portal/manager/'
 manager_patterns = [
     # Manager views for leave management
+    path('projects/', views.manager_project_view, {'action': 'list'}, name='project_list'),  # List all projects
+    path('projects/create/', views.manager_project_view, {'action': 'create'}, name='project_create'),  # Create project
+    path('projects/update/<int:project_id>/', views.manager_project_view, {'action': 'update'}, name='project_update'),  # Update project
+    path('projects/detail/<int:project_id>/', views.manager_project_view, {'action': 'detail'}, name='project_detail'),  # View project details
+
 
     path('leave/requests/', views.view_leave_requests_hr, name='view_leave_requests_manager'),
     path('leave/<int:leave_id>/<str:action>/', views.manage_leave_request_manager, name='manage_leave_manager'),
