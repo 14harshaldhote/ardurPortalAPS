@@ -1,20 +1,84 @@
 {% extends 'base.html' %}
 {% block title %}Dashboard - APS Portal{% endblock %}
 {% block content %}
-<div class="min-h-screen  py-6 px-4 sm:px-6 lg:px-8">
+<div class="min-h-screen py-6 px-4 sm:px-6 lg:px-8 overflow-y-auto">
 
     <!-- Container for content -->
     <div class="max-w-7xl mx-auto">
 
         <!-- Header Section -->
-        <div class="flex items-center justify-between mb-8  p-6 rounded-lg shadow-lg">
-            <div>
-                <p class="text-xl font-thin text-gray-800">Let's Make Today Amazing!</p>
+        <div class="relative overflow-hidden bg-white mb-8 rounded-lg shadow-lg">
+            <!-- Decorative background elements -->
+            <div class="absolute top-0 left-0 w-full h-full">
+                <div
+                    class="absolute top-0 left-0 w-32 h-32 bg-indigo-100 rounded-full -translate-x-16 -translate-y-16 opacity-50">
+                </div>
+                <div
+                    class="absolute bottom-0 right-0 w-32 h-32 bg-green-100 rounded-full translate-x-16 translate-y-16 opacity-50">
+                </div>
             </div>
-            <div class="flex items-center space-x-4">
-                <span class="bg-green-500 text-white px-4 py-2 rounded-full text-sm">Online</span>
+
+            <!-- Content container -->
+            <div class="relative p-8 md:p-12">
+                <div class="flex flex-col md:flex-row justify-between space-y-6 md:space-y-0">
+                    <!-- Left side content -->
+                    <div class="space-y-6 w-full md:w-8/12">
+                        <!-- Motivational message -->
+                        <div
+                            class="inline-block px-6 py-3 bg-indigo-100 text-indigo-700 font-medium text-lg rounded-lg shadow-md">
+                            <p>Let's Make Today Amazing!</p>
+                        </div>
+
+                        <!-- Projects section -->
+                        <div class="space-y-6">
+                            {% if projects %}
+                            {% for project in projects %}
+                            <div class="group">
+                                <div class="flex items-center space-x-3">
+                                    <h2 class="text-sm font-medium text-blue-600 hover:text-blue-500">
+                                        Assigned Project -
+                                    </h2>
+                                    
+                                    <h2 class="text-sm font-medium text-indigo-600 hover:text-indigo-500">
+                                        {{ project.name }}
+                                    </h2>
+                                </div>
+                            </div>
+                            {% endfor %}
+                            {% else %}
+                            <div class="flex items-center space-x-3 bg-gray-50 px-6 py-4 rounded-lg shadow-md">
+                                <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                </svg>
+                                <p class="text-lg text-gray-600">No projects assigned yet</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Right side content -->
+                    <div class="flex flex-col items-end space-y-6 w-full md:w-4/12">
+                        <!-- Status indicator -->
+                        <div
+                            class="flex items-center space-x-3 bg-gradient-to-r from-green-400 to-green-600 px-6 py-4 rounded-2xl shadow-lg">
+                            <div class="w-4 h-4 bg-white rounded-full animate-ping"></div>
+                            <span class="text-white font-medium text-lg">Online</span>
+                        </div>
+
+                        <!-- Optional additional info (like last login) -->
+                        <div class="text-right text-gray-500 text-sm">
+                            <p>Last login: {{ user.last_login|date:"F j, Y, g:i a" }}</p>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
+
+
+
+
 
         <!-- Quick Stats Cards Section -->
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mb-8">

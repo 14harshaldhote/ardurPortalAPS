@@ -88,6 +88,10 @@ TIME_ZONE = 'Asia/Kolkata'
 USE_TZ = True
 
 STATIC_URL = 'static/'
+# Add this line to include the base static directory for your project
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, 'static'),  # This tells Django to look in the 'static' folder in the project root
+]
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 

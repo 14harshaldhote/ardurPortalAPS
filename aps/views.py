@@ -184,17 +184,22 @@ def get_attendance_stats(user):
 def dashboard_view(request):
     user = request.user
 
-    # Get data for the attendance card
+    # Get data for the attendance card (as you had before)
     attendance_data = get_attendance_stats(user)
 
-    # Context for the dashboard view (other cards' data can be added here)
+    # Retrieve all assignments where the logged-in user is assigned to any role
+    assignments = ProjectAssignment.objects.filter(user=user)
+
+    # Get the projects from the assignments
+    projects = [assignment.project for assignment in assignments]
+
+    # Context for the dashboard view
     context = {
         'attendance': attendance_data,
-        # Add other cards' data as needed
+        'projects': projects,  # Pass the projects to the template
     }
 
     return render(request, 'dashboard.html', context)
-
 
 
 ''' --------------------------------------------------------- ADMIN AREA --------------------------------------------------------- '''

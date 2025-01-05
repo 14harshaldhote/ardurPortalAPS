@@ -10,6 +10,11 @@
     <style>
         body {
             background-color: #F2F3F6;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
         }
 
         .greeting {
@@ -47,13 +52,43 @@
             opacity: 0.5;
             width: 200px;
         }
+
+        /* Make navbar fixed */
+        /* Modern Navbar Base Styles */
+        .navbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            overflow-y: auto;
+            transition: all 0.3s ease-in-out;
+            border-right: 1px solid #e5e7eb;
+            box-shadow:
+                0 4px 6px -1px rgba(0, 0, 0, 0.05),
+                0 2px 4px -1px rgba(0, 0, 0, 0.03);
+        }
+
+       
+
+        .content-wrapper {
+            margin-left: 240px;
+            /* Same as navbar width */
+            padding: 20px;
+            flex-grow: 1;
+            overflow-y: auto;
+            height: 100%;
+        }
     </style>
 </head>
 
 <body>
     <div class="flex">
-        {% include 'navbar.html' %}
-        <div class="flex-1 p-6 mb-6 shadow-lg">
+        <div class="navbar">
+            
+            {% include 'navbar.html' %}
+        </div>
+
+        <div class="content-wrapper">
             <header class="flex justify-between items-center p-6">
                 <p id="greeting" class="greeting text-black font-thin text-4xl">
                     <span class="font-semibold text-sm">{{ user.first_name }} {{ user.last_name }}</span>
@@ -80,7 +115,7 @@
     </div>
 
     <!-- JavaScript for idle time tracking -->
-    <script>
+    <script defer>
         let idleTime = 0;
 
         function resetIdleTime() {
@@ -117,7 +152,135 @@
                 return "Good Evening";
             }
         }
+        document.addEventListener('DOMContentLoaded', function() {
+    // First check if elements exist
+    const statusIndicator = document.getElementById("status-indicator");
+    const statusText = document.getElementById("status-text");
+    const statusDot = document.getElementById("status-dot");
 
+    // Only proceed if all elements are found
+    if (statusIndicator && statusText && statusDot) {
+        let idleTime = 0;
+
+        // Function to calculate color based on idle time
+        function getGradientColor(idleSeconds) {
+            // Constants for color definitions
+            const colors = {
+                start: {
+                    primary: { r: 74, g: 222, b: 128 },    // Bright green
+                    secondary: { r: 34, g: 197, b: 94 }    // Darker green
+                },
+                middle: {
+                    primary: { r: 250, g: 204, b: 21 },    // Yellow
+                    secondary: { r: 234, g: 179, b: 8 }    // Darker yellow
+                },
+                end: {
+                    primary: { r: 239, g: 68, b: 68 },     // Bright red
+                    secondary: { r: 220, g: 38, b: 38 }    // Darker red
+                }
+            };
+
+            // For first 30 seconds, stay green
+            if (idleSeconds <= 30) {
+                return `linear-gradient(to right, 
+                    rgb(${colors.start.primary.r}, ${colors.start.primary.g}, ${colors.start.primary.b}), 
+                    rgb(${colors.start.secondary.r}, ${colors.start.secondary.g}, ${colors.start.secondary.b}))`;
+            }
+
+            // Between 30-60 seconds, create smooth transition
+            if (idleSeconds <= 60) {
+                // Calculate progress (0 to 1)
+                const progress = (idleSeconds - 30) / 30;
+                
+                // Use cubic easing for smoother transition
+                const easedProgress = progress * progress * (3 - 2 * progress);
+                
+                // First half of transition (green to yellow)
+                if (progress <= 0.5) {
+                    const normalizedProgress = easedProgress * 2;
+                    
+                    // Calculate interpolated colors for first gradient color
+                    const r1 = Math.round(colors.start.primary.r + (colors.middle.primary.r - colors.start.primary.r) * normalizedProgress);
+                    const g1 = Math.round(colors.start.primary.g + (colors.middle.primary.g - colors.start.primary.g) * normalizedProgress);
+                    const b1 = Math.round(colors.start.primary.b + (colors.middle.primary.b - colors.start.primary.b) * normalizedProgress);
+                    
+                    // Calculate interpolated colors for second gradient color
+                    const r2 = Math.round(colors.start.secondary.r + (colors.middle.secondary.r - colors.start.secondary.r) * normalizedProgress);
+                    const g2 = Math.round(colors.start.secondary.g + (colors.middle.secondary.g - colors.start.secondary.g) * normalizedProgress);
+                    const b2 = Math.round(colors.start.secondary.b + (colors.middle.secondary.b - colors.start.secondary.b) * normalizedProgress);
+                    
+                    return `linear-gradient(to right, rgb(${r1}, ${g1}, ${b1}), rgb(${r2}, ${g2}, ${b2}))`;
+                } 
+                // Second half of transition (yellow to red)
+                else {
+                    const normalizedProgress = (easedProgress - 0.5) * 2;
+                    
+                    // Calculate interpolated colors for first gradient color
+                    const r1 = Math.round(colors.middle.primary.r + (colors.end.primary.r - colors.middle.primary.r) * normalizedProgress);
+                    const g1 = Math.round(colors.middle.primary.g + (colors.end.primary.g - colors.middle.primary.g) * normalizedProgress);
+                    const b1 = Math.round(colors.middle.primary.b + (colors.end.primary.b - colors.middle.primary.b) * normalizedProgress);
+                    
+                    // Calculate interpolated colors for second gradient color
+                    const r2 = Math.round(colors.middle.secondary.r + (colors.end.secondary.r - colors.middle.secondary.r) * normalizedProgress);
+                    const g2 = Math.round(colors.middle.secondary.g + (colors.end.secondary.g - colors.middle.secondary.g) * normalizedProgress);
+                    const b2 = Math.round(colors.middle.secondary.b + (colors.end.secondary.b - colors.middle.secondary.b) * normalizedProgress);
+                    
+                    return `linear-gradient(to right, rgb(${r1}, ${g1}, ${b1}), rgb(${r2}, ${g2}, ${b2}))`;
+                }
+            }
+
+            // After 60 seconds, stay red
+            return `linear-gradient(to right, 
+                rgb(${colors.end.primary.r}, ${colors.end.primary.g}, ${colors.end.primary.b}), 
+                rgb(${colors.end.secondary.r}, ${colors.end.secondary.g}, ${colors.end.secondary.b}))`;
+        }
+
+        // Function to reset idle time
+        function resetIdleTime() {
+            idleTime = 0;
+            updateStatus();
+        }
+
+        // Function to increment idle time
+        function incrementIdleTime() {
+            idleTime++;
+            updateStatus();
+        }
+
+        // Function to update status display
+        function updateStatus() {
+            // Update gradient color
+            statusIndicator.style.background = getGradientColor(idleTime);
+            
+            // Update status text and animation
+            if (idleTime <= 30) {
+                statusText.innerText = "Online";
+                statusDot.classList.add('animate-ping');
+            } else if (idleTime <= 45) {
+                statusText.innerText = "Idle";
+                statusDot.classList.add('animate-ping');
+            } else {
+                statusText.innerText = "Inactive";
+                statusDot.classList.remove('animate-ping');
+            }
+            
+            // Add transition effect
+            statusIndicator.style.transition = 'background 0.5s ease';
+        }
+
+        // Initialize event listeners
+        document.addEventListener('mousemove', resetIdleTime);
+        document.addEventListener('keypress', resetIdleTime);
+        document.addEventListener('click', resetIdleTime);
+        document.addEventListener('scroll', resetIdleTime);
+
+        // Start the idle timer
+        setInterval(incrementIdleTime, 1000); // Check every second
+
+        // Initial status update
+        updateStatus();
+    }
+});
         document.addEventListener("DOMContentLoaded", function () {
             const greetingElement = document.getElementById("greeting");
             greetingElement.innerHTML = `${getGreeting()} <span class="font-semibold text-xl">{{ user.first_name }} {{ user.last_name }}</span>`;
