@@ -312,33 +312,67 @@ class Employee(models.Model):
         return f"{self.user.username} - {', '.join([group.name for group in self.user.groups.all()])}"
     
 ''' ------------------------------------------- PROFILE AREA ------------------------------------------- '''
+from django.core.exceptions import ValidationError
+
+from django.db import models
+from django.core.validators import RegexValidator
+from django.contrib.auth.models import User, Group
 
 class UserDetails(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
-    first_name = models.CharField(max_length=100)
-    last_name = models.CharField(max_length=100)
+    
     dob = models.DateField(null=True, blank=True)
-    blood_group = models.CharField(max_length=10, null=True, blank=True)
+    blood_group = models.CharField(
+        max_length=10, 
+        choices=[ ('', '--------'),
+            ('A+', 'A+'),
+            ('A-', 'A-'),
+            ('B+', 'B+'),
+            ('B-', 'B-'),
+            ('AB+', 'AB+'),
+            ('AB-', 'AB-'),
+            ('O+', 'O+'),
+            ('O-', 'O-'),
+        ], 
+        null=True, 
+        blank=True, 
+        default='Unknown'
+    )
     hire_date = models.DateField(null=True, blank=True)
-    gender = models.CharField(max_length=10, choices=[('Male', 'Male'), ('Female', 'Female'), ('Other', 'Other')], null=True, blank=True)
-    panno = models.CharField(max_length=20, default="UNKNOWN")
-    job_description = models.CharField(max_length=100, default="Not Assigned")
-    employment_status = models.CharField(max_length=50)
-    emergency_contact_address = models.TextField(default="Unknown")
-    emergency_contact_primary = models.CharField(max_length=15, default="0000000000")
-    emergency_contact_name = models.CharField(max_length=100, default="Unknown")
+    gender = models.CharField(max_length=10, choices=[('', '--------'),('Male', 'Male'), ('Female', 'Female'), ('Other', 'Other')], null=True, blank=True)
+    
+    panno = models.CharField(max_length=10, null=True, blank=True)
+
+    job_description = models.TextField(null=True, blank=True)
+    employment_status = models.CharField(
+        max_length=50,
+        choices=[ 
+            ('', '--------'),
+            ('active', 'Active'),
+            ('inactive', 'Inactive'),
+            ('terminated', 'Terminated'),
+            ('resigned', 'Resigned'),
+            ('suspended', 'Suspended'),
+        ],
+        blank=True,         null=True, 
+ # No default value here
+    )
+    emergency_contact_address = models.TextField(null=True, blank=True)
+    emergency_contact_primary = models.CharField(max_length=10, null=True, blank=True)
+    emergency_contact_name = models.CharField(max_length=100, null=True, blank=True)
     start_date = models.DateField(null=True, blank=True)
-    work_location = models.CharField(null=True, max_length=100)
-    contact_number_primary = models.CharField(max_length=15, null=True, blank=True, default="0000000000")
-    personal_email = models.EmailField(default="not_provided@example.com")
-    aadharno = models.CharField(max_length=12, null=True, blank=True, default="UNKNOWN")
-    group = models.ForeignKey(Group, on_delete=models.SET_NULL, null=True, blank=True)
+    work_location = models.CharField(max_length=100, null=True, blank=True)
+    contact_number_primary = models.CharField(max_length=10, null=True, blank=True)
+    personal_email = models.EmailField(null=True, blank=True)
+    aadharno = models.CharField(max_length=14, null=True, blank=True)  # To store Aadhar with spaces
+    group = models.ForeignKey('auth.Group', on_delete=models.SET_NULL, null=True, blank=True)
+
+    # Ensure the contact number is in the correct format
 
     def __str__(self):
-        return f'{self.first_name} {self.last_name}'
+        return f"Details for {self.user.username}" 
 
-    def full_name(self):
-        return f"{self.first_name} {self.last_name}"
+
 
 ''' ------------------------------------------- PROJECT AREA ------------------------------------------- '''
 

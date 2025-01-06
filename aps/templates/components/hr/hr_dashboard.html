@@ -1,78 +1,146 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="container mx-auto px-4 py-8">
-    <div class="mb-8">
-        <h1 class="text-2xl font-bold mb-6">HR Dashboard</h1>
-        
-        <!-- Search Form -->
-        <form method="GET" class="flex gap-4 mb-6">
-            <div class="flex-1">
-                <input 
-                    type="text" 
-                    name="search" 
-                    placeholder="Search by name, email, or job description..." 
-                    value="{{ request.GET.search }}"
-                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
-                >
-            </div>
-            <button type="submit" class="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
-                Search
-            </button>
-            {% if request.GET.search %}
-                <a href="{% url 'aps_hr:hr_dashboard' %}" class="px-6 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors">
-                    Clear
-                </a>
-            {% endif %}
-        </form>
-
-        <!-- Filters -->
-        <div class="flex gap-4 mb-6">
-            <select name="department" class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
-                <option value="">All Departments</option>
-                <option value="IT" {% if request.GET.department == 'IT' %}selected{% endif %}>IT</option>
-                <option value="HR" {% if request.GET.department == 'HR' %}selected{% endif %}>HR</option>
-                <option value="Finance" {% if request.GET.department == 'Finance' %}selected{% endif %}>Finance</option>
-            </select>
-            
-            <select name="status" class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
-                <option value="">All Status</option>
-                <option value="Active" {% if request.GET.status == 'Active' %}selected{% endif %}>Active</option>
-                <option value="Inactive" {% if request.GET.status == 'Inactive' %}selected{% endif %}>Inactive</option>
-            </select>
+<div class="min-h-screen bg-gray-50">
+    <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Header Section -->
+        <div class="mb-8">
+            <h1 class="text-3xl font-semibold text-gray-900">HR Dashboard</h1>
+            <p class="mt-2 text-sm text-gray-600">Manage and view employee information effortlessly</p>
         </div>
-    </div>
 
-    <!-- Results Count -->
-    {% if users %}
-        <p class="text-gray-600 mb-4">Showing {{ users|length }} results {% if request.GET.search %}for "{{ request.GET.search }}"{% endif %}</p>
-    {% endif %}
-
-    <!-- Users List -->
-    {% if users %}
-        <div class="grid gap-4">
-            {% for user in users %}
-                <div class="bg-white p-4 rounded-lg shadow hover:shadow-md transition-shadow">
-                    <div class="flex justify-between items-center">
-                        <div>
-                            <h2 class="text-lg font-semibold">{{ user.first_name }} {{ user.last_name }}</h2>
-                            <p class="text-gray-600">{{ user.job_description }}</p>
-                            <p class="text-sm text-gray-500">{{ user.work_location }}</p>
-                        </div>
-                        <div class="flex gap-2">
-                            <a href="{% url 'aps_hr:hr_user_detail' user_id=user.id %}" 
-                               class="py-2 px-4 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors">
-                                View Details
-                            </a>
+        <!-- Search and Filter Section -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <form method="GET" action="{% url 'aps_hr:hr_dashboard' %}" class="space-y-4 md:space-y-0 md:flex md:gap-4 items-start">
+                <!-- Search Input -->
+                <div class="flex-1">
+                    <label for="search" class="block text-sm font-medium text-gray-700 mb-1">Search</label>
+                    <div class="relative">
+                        <input
+                            type="text"
+                            id="search"
+                            name="search"
+                            placeholder="Search by name, job description, or username"
+                            value="{{ request.GET.search }}"
+                            class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                        >
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+                            </svg>
                         </div>
                     </div>
                 </div>
+
+                <!-- Filters -->
+                <div class="flex flex-col sm:flex-row gap-4">
+                    <div class="w-full sm:w-40">
+                        <label for="department" class="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                        <select id="department" name="department" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200">
+                            <option value="">All Departments</option>
+                            <option value="HR" {% if request.GET.department == "HR" %}selected{% endif %}>HR</option>
+                            <option value="IT" {% if request.GET.department == "IT" %}selected{% endif %}>IT</option>
+                            <option value="Finance" {% if request.GET.department == "Finance" %}selected{% endif %}>Finance</option>
+                        </select>
+                    </div>
+                    <div class="w-full sm:w-40">
+                        <label for="status" class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                        <select id="status" name="status" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200">
+                            <option value="">All Status</option>
+                            <option value="Active" {% if request.GET.status == "Active" %}selected{% endif %}>Active</option>
+                            <option value="Inactive" {% if request.GET.status == "Inactive" %}selected{% endif %}>Inactive</option>
+                        </select>
+                    </div>
+                    <div class="w-full sm:w-40">
+                        <label for="work_location" class="block text-sm font-medium text-gray-700 mb-1">Work Location</label>
+                        <select id="work_location" name="work_location" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200">
+                            <option value="">All Locations</option>
+                            <option value="Office" {% if request.GET.work_location == "Office" %}selected{% endif %}>Office</option>
+                            <option value="Remote" {% if request.GET.work_location == "Remote" %}selected{% endif %}>Remote</option>
+                            <option value="Hybrid" {% if request.GET.work_location == "Hybrid" %}selected{% endif %}>Hybrid</option>
+                        </select>
+                    </div>
+                    <div class="flex items-end">
+                        <button type="submit" class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 transition-all duration-200 flex items-center justify-center gap-2">
+                            <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+                            </svg>
+                            Search
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Results Count -->
+        {% if users %}
+        <div class="flex items-center justify-between mb-6">
+            <p class="text-sm text-gray-600">
+                Showing {{ users|length }} results 
+                {% if request.GET.search %}for "{{ request.GET.search }}"{% endif %}
+            </p>
+        </div>
+        {% endif %}
+
+        <!-- Users Grid -->
+        {% if users %}
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {% for user in users %}
+            <div class="bg-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 overflow-hidden group">
+                <div class="p-6">
+                    <div class="flex items-start justify-between">
+                        <div>
+                            <h2 class="text-lg font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
+                                {{ user.first_name }} {{ user.last_name }}
+                            </h2>
+                            <p class="mt-1 text-sm text-gray-600">Username: {{ user.username }}</p>
+                        </div>
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {% if user.userdetails.employment_status == 'Active' %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+                            {{ user.userdetails.employment_status }}
+                        </span>
+                    </div>
+                    
+                    <div class="mt-4 space-y-2">
+                        {% if user.userdetails.work_location %}
+                        <div class="flex items-center text-sm text-gray-500">
+                            <svg class="h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" />
+                            </svg>
+                            {{ user.userdetails.work_location }}
+                        </div>
+                        {% endif %}
+                        
+                        {% if user.userdetails.department %}
+                        <div class="flex items-center text-sm text-gray-500">
+                            <svg class="h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+                            </svg>
+                            {{ user.userdetails.department }}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="px-6 py-4 bg-gray-50 border-t border-gray-100">
+                    <a href="{% url 'aps_hr:hr_user_detail' user.id %}" 
+                       class="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200">
+                        View Details
+                        <svg class="ml-2 -mr-1 h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+                        </svg>
+                    </a>
+                </div>
+            </div>
             {% endfor %}
         </div>
-    {% else %}
-        <div class="text-center py-8">
-            <p class="text-gray-600">No users found {% if request.GET.search %}for "{{ request.GET.search }}"{% endif %}</p>
+        {% else %}
+        <div class="text-center py-12">
+            <svg class="mx-auto h-12 w-12 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h18M3 12h18M3 19h18" />
+            </svg>
+            <p class="mt-4 text-xl text-gray-600">No users found matching your criteria.</p>
         </div>
-    {% endif %}
+        {% endif %}
+    </div>
 </div>
 {% endblock %}

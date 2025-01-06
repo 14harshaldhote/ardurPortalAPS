@@ -228,76 +228,104 @@ def is_employee(user):
 @user_passes_test(is_hr)
 def hr_dashboard(request):
     """HR Dashboard to see all users and perform actions"""
+    search_query = request.GET.get('search', '')
+    department_filter = request.GET.get('department', '')
+    status_filter = request.GET.get('status', '')
+    work_location_filter = request.GET.get('work_location', '')  # Add work location filter
+
+    # Start with all users
     users = User.objects.all()
+
+    # Filter based on the search query
+    if search_query:
+        users = users.filter(
+            Q(first_name__icontains=search_query) |
+            Q(last_name__icontains=search_query) |
+            Q(job_description__icontains=search_query) |
+            Q(username__icontains=search_query)
+        )
+
+    # Filter by UserDetails department if selected
+    if department_filter:
+        users = users.filter(userdetails__department=department_filter)
+
+    # Filter by employment status if selected
+    if status_filter:
+        users = users.filter(userdetails__employment_status=status_filter)
+
+    # Filter by work location if selected
+    if work_location_filter:
+        users = users.filter(userdetails__work_location=work_location_filter)
+
+    # Use select_related to join UserDetails to avoid additional queries
+    users = users.select_related('userdetails')
+
     return render(request, 'components/hr/hr_dashboard.html', {
         'users': users,
         'role': 'HR'
     })
 
+
 @login_required
 @user_passes_test(is_hr)
 def hr_user_detail(request, user_id):
-    """HR View to view and edit user details"""
-    try:
-        user_detail = User.objects.get(id=user_id)
-    except User.DoesNotExist:
-        raise Http404("User not found")
-    
+    user = get_object_or_404(User, id=user_id)
+    user_detail, created = UserDetails.objects.get_or_create(user=user)
+
     if request.method == 'POST':
         try:
-            # Print the POST data to debug
-            print(request.POST)
-            
-            # Direct update from POST data
-            user_detail.first_name = request.POST.get('first_name', user_detail.first_name)
-            user_detail.last_name = request.POST.get('last_name', user_detail.last_name)
-            user_detail.job_description = request.POST.get('job_description', user_detail.job_description)
-            user_detail.employment_status = request.POST.get('employment_status', user_detail.employment_status)
-            user_detail.work_location = request.POST.get('work_location', user_detail.work_location)
-            user_detail.contact_number_primary = request.POST.get('contact_number_primary', user_detail.contact_number_primary)
-            user_detail.personal_email = request.POST.get('personal_email', user_detail.personal_email)
-            
-            # Handle date fields
-            dob = request.POST.get('dob')
-            if dob:
-                user_detail.dob = datetime.strptime(dob, '%Y-%m-%d')
-            
-            hire_date = request.POST.get('hire_date')
-            if hire_date:
-                user_detail.hire_date = datetime.strptime(hire_date, '%Y-%m-%d')
-            
-            start_date = request.POST.get('start_date')
-            if start_date:
-                user_detail.start_date = datetime.strptime(start_date, '%Y-%m-%d')
-            
-            # Other fields
-            user_detail.blood_group = request.POST.get('blood_group', user_detail.blood_group)
-            user_detail.gender = request.POST.get('gender', user_detail.gender)
-            user_detail.panno = request.POST.get('panno', user_detail.panno)
-            user_detail.aadharno = request.POST.get('aadharno', user_detail.aadharno)
-            
-            # Emergency contact details
-            user_detail.emergency_contact_name = request.POST.get('emergency_contact_name', user_detail.emergency_contact_name)
-            user_detail.emergency_contact_primary = request.POST.get('emergency_contact_primary', user_detail.emergency_contact_primary)
-            user_detail.emergency_contact_address = request.POST.get('emergency_contact_address', user_detail.emergency_contact_address)
-            
-            # Save the user details
-            # Save the user details
-            try:
-                user_detail.save()
-                print("User details saved successfully.")
-            except Exception as e:
-                print(f"Error saving user details: {e}")
+            # Print the form data for debugging
+            print("POST data received:", request.POST)
 
-            return redirect('hr_dashboard')
+            # Get form data without default values
+            user_detail.dob = request.POST.get('dob') or None
+            user_detail.blood_group = request.POST.get('blood_group') or None
+            user_detail.hire_date = request.POST.get('hire_date') or None
+            user_detail.gender = request.POST.get('gender') or None
+            user_detail.panno = request.POST.get('panno') or None
+            user_detail.job_description = request.POST.get('job_description') or None
+            user_detail.employment_status = request.POST.get('employment_status') or None
+            user_detail.emergency_contact_address = request.POST.get('emergency_contact_address') or None
+            user_detail.emergency_contact_primary = request.POST.get('emergency_contact_primary') or None
+            user_detail.emergency_contact_name = request.POST.get('emergency_contact_name') or None
+            user_detail.start_date = request.POST.get('start_date') or None
+            user_detail.work_location = request.POST.get('work_location') or None
+            user_detail.contact_number_primary = request.POST.get('contact_number_primary') or None
+            user_detail.personal_email = request.POST.get('personal_email') or None
+            user_detail.aadharno = request.POST.get('aadharno') or None
 
+            # Print the updated user_detail object for debugging
+            # Print the updated user_detail object for debugging
+            print("User Detail before save:", user_detail)
+
+            # Validate contact number and Aadhar number only if they are provided
+            if user_detail.contact_number_primary and len(user_detail.contact_number_primary) != 10:
+                raise ValueError('Primary contact number must be 10 digits.')
             
+            # Remove spaces from Aadhar number before validation
+            if user_detail.aadharno:
+                aadhar_cleaned = user_detail.aadharno.replace(' ', '')
+                if len(aadhar_cleaned) != 12:
+                    raise ValueError('Aadhar number must be 12 digits.')
+
+            user_detail.save()
+        
+            messages.success(request, 'User details updated successfully.')
+            return redirect('aps_hr:hr_dashboard')
+
+        except ValueError as e:
+            # Catch validation errors and display the message
+            print("Validation Error:", str(e))
+            messages.error(request, str(e))
         except Exception as e:
+            # Catch general errors and display the message
+            print("Error updating user details:", str(e))
             messages.error(request, f'Error updating user details: {str(e)}')
-    
+
     return render(request, 'components/hr/hr_user_detail.html', {
         'user_detail': user_detail,
-        'role': 'HR'
+        'blood_group_choices': UserDetails._meta.get_field('blood_group').choices,
+        'gender_choices': UserDetails._meta.get_field('gender').choices,
     })
 
 # Manager Views
