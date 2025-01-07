@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<script>
+    console.log("about to load admin support ");
+</script>
+<div class="container mx-auto px-6 py-8">
+    <h2 class="text-3xl font-semibold mb-8 text-gray-800">IT Support - Admin</h2>
+
+    <script>
+        console.log("Rendering Admin Overview");
+    </script>
+
+    <!-- Admin Overview: Open, In Progress, Resolved tickets -->
+    <div class="mb-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="bg-blue-100 p-6 rounded-lg shadow-xl hover:shadow-2xl transition-all duration-300">
+            <h3 class="text-xl font-semibold text-blue-700">Open Tickets</h3>
+            <p class="text-3xl font-bold text-blue-800">{{ open_tickets }}</p>
+            <script>
+                console.log("Open Tickets count: ", "{{ open_tickets }}");
+            </script>
+        </div>
+        <div class="bg-yellow-100 p-6 rounded-lg shadow-xl hover:shadow-2xl transition-all duration-300">
+            <h3 class="text-xl font-semibold text-yellow-700">In Progress</h3>
+            <p class="text-3xl font-bold text-yellow-800">{{ in_progress_tickets }}</p>
+            <script>
+                console.log("In Progress Tickets count: ", "{{ in_progress_tickets }}");
+            </script>
+        </div>
+        <div class="bg-green-100 p-6 rounded-lg shadow-xl hover:shadow-2l transition-all duration-300">
+            <h3 class="text-xl font-semibold text-green-700">Resolved</h3>
+            <p class="text-3xl font-bold text-green-800">{{ resolved_tickets }}</p>
+            <script>
+                console.log("Resolved Tickets count: ", "{{ resolved_tickets }}");
+            </script>
+        </div>
+    </div>
+
+    <script>
+        console.log("Rendering Ticket Table");
+    </script>
+
+    <!-- Ticket Table -->
+    <div class="overflow-x-auto bg-white shadow-lg rounded-lg">
+        <table class="min-w-full table-auto">
+            <thead class="bg-gray-800 text-white">
+                <tr>
+                    <th class="py-4 px-6 text-left">Ticket ID</th>
+                    <th class="py-4 px-6 text-left">Issue Type</th>
+                    <th class="py-4 px-6 text-left">Assigned To</th>
+                    <th class="py-4 px-6 text-left">Status</th>
+                    <th class="py-4 px-6 text-center">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="bg-gray-100">
+                {% for ticket in tickets %}
+                    <tr class="hover:bg-gray-200 transition-all">
+                        <td class="py-3 px-6">{{ ticket.ticket_id }}</td>
+                        <td class="py-3 px-6">{{ ticket.issue_type }}</td>
+                        <td class="py-3 px-6">{{ ticket.assigned_to }}</td>
+                        <td class="py-3 px-6">{{ ticket.status }}</td>
+                        <td class="py-3 px-6 text-center">
+                            <a href="{% url 'aps_admin:admin_support_with_ticket' ticket.ticket_id %}" class="text-blue-600 hover:text-blue-800 font-semibold">View</a>
+                            <script>
+                                console.log("View ticket link for ticket ID: {{ ticket.ticket_id }}");
+                            </script>
+                            {% if ticket.status == 'Open' %}
+                                <a href="{% url 'aps_admin:update_ticket' ticket.ticket_id %}" class="ml-4 text-yellow-600 hover:text-yellow-800 font-semibold">Update</a>
+                                <script>
+                                    console.log("Update ticket link for ticket ID: {{ ticket.ticket_id }}");
+                                </script>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center py-6 text-gray-500">No tickets found.</td>
+                        <script>
+                            console.log("No tickets found.");
+                        </script>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        console.log("Rendering Access Denied Message");
+    </script>
+
+    <div class="text-center py-8">
+        {% if not is_admin %}
+            <p class="text-xl text-gray-500">You do not have access to this page.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -12,9 +12,6 @@ websocket_urlpatterns = [
 admin_patterns = [
     # Admin-related views
     path('user-sessions/', views.user_sessions_view, name='user_sessions'),  # View all user sessions
-    path('it_support_admin/', views.it_support_admin, name='it_support_admin'),  # IT support admin home
-    path('ticket/<int:ticket_id>/', views.ticket_detail, name='ticket_detail'),  # View details of a ticket
-    path('ticket/update/<int:ticket_id>/', views.update_ticket, name='update_ticket'),  # Update ticket details
     path('report/', views.report_view, name='report'),  # Admin report view
     path('reports/feature_usage/', views.feature_usage_view, name='feature_usage'),  # Feature usage report
     path('reports/projects_report/', views.projects_report_view, name='projects_report'),  # Projects report
@@ -31,15 +28,20 @@ admin_patterns = [
     path('projects/<int:project_id>/', views.project_view, {'action': 'detail'}, name='project_detail'),
 
     path('attendance/', views.admin_attendance_view, name='attendance'),  # Admin attendance summary
+
+    path('support/', views.admin_support, name='admin_support'),
+    path('support/<int:ticket_id>/', views.admin_support, name='admin_support_with_ticket'),
+
 ]
 
 # Employee-specific URLs under 'portal/employee/'
 employee_patterns = [
     # Employee-related views
+
+    path('support/', views.employee_support, name='employee_support'),
+
     path('attendance/', views.employee_attendance_view, name='attendance'),  # Employee attendance view
-    path('it_support/', views.it_support_home, name='it_support_home'),  # IT support home for employee
-    path('it_support/create_ticket/', views.create_ticket, name='create_ticket'),  # Create an IT support ticket
-    path('it_support/change_password/', views.change_password, name='change_password'),  # Change password for employee
+   
     path('timesheet/', views.timesheet_view, name='timesheet'),  # View timesheet for employee
     # Leave-related URLs for Employee
     path('leave/', views.leave_view, name='leave_view'),  # Employee leave dashboard
@@ -57,6 +59,8 @@ hr_patterns = [
 
     path('hr/dashboard/', views.hr_dashboard, name='hr_dashboard'),
     path('user/<int:user_id>/', views.hr_user_detail, name='hr_user_detail'),
+    path('support/', views.hr_support, name='hr_support'),
+
 
 ]
 
@@ -101,7 +105,7 @@ urlpatterns = [
     path('dashboard/', views.dashboard_view, name='dashboard'),  # Main dashboard view
 
     # Admin-specific URLs under 'portal/admin/'
-    path('portal/admin/', include((admin_patterns, 'aps'), namespace='aps_admin')),  # Admin-related URLs
+    path('portal/admin/', include((admin_patterns, 'aps'), namespace='aps_admin')),
     
     # Employee-specific URLs under 'portal/employee/'
     path('portal/employee/', include((employee_patterns, 'aps'), namespace='aps_employee')),  # Employee-related URLs

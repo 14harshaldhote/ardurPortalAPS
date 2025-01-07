@@ -249,9 +249,9 @@ class Attendance(models.Model):
                     if self.clock_in_time:
                         self.total_hours = last_session.logout_time - self.clock_in_time
 
-            # Don't override status if it's already Present
-            elif self.status != 'Present':
-                self.status = 'Pending'
+            # Set status to 'Absent' if no sessions are found
+            if not user_sessions.exists() and self.status != 'On Leave':
+                self.status = 'Absent'
                 if not self.clock_in_time:  # Only clear if not manually set
                     self.clock_in_time = None
                     self.clock_out_time = None
@@ -264,17 +264,36 @@ class Attendance(models.Model):
 
     def save(self, *args, **kwargs):
         print(f"Saving attendance for user: {self.user.username}, date: {self.date}")
+        
+        # Check if no sessions are found for the user on the given date
+        user_sessions = UserSession.objects.filter(user=self.user, login_time__date=self.date)
+        
+        # If no sessions are found, mark as 'Absent' and clear times
+        if not user_sessions.exists():
+            print(f"No sessions found for user {self.user.username} on {self.date}. Marking as Absent.")
+            self.status = 'Absent'
+            self.clock_in_time = None
+            self.clock_out_time = None
+            self.total_hours = None
+        
+        # Call the calculate_attendance method to update based on session data
         self.calculate_attendance()
+        
+        # Save the instance with the updated data
         super().save(*args, **kwargs)
+        
         print(f"Attendance saved for user: {self.user.username}, date: {self.date}, "
-              f"status: {self.status}, clock-in: {self.clock_in_time}, "
-              f"clock-out: {self.clock_out_time}, total hours: {self.total_hours}")
+            f"status: {self.status}, clock-in: {self.clock_in_time}, "
+            f"clock-out: {self.clock_out_time}, total hours: {self.total_hours}")
 
 '''-------------------------------------------- IT SUPPORT AREA ---------------------------------------'''
+import uuid
 
+def generate_ticket_id():
+    return str(uuid.uuid4())[:10]  # Ensure the ID is within a reasonable length
 
-# IT Support Ticket model to track and manage IT support requests
-class ITSupportTicket(models.Model):
+# Support model to track and manage support requests
+class Support(models.Model):
     STATUS_CHOICES = [
         ('Open', 'Open'),
         ('In Progress', 'In Progress'),
@@ -288,16 +307,25 @@ class ITSupportTicket(models.Model):
         ('Network Issue', 'Network Issue'),
         ('Internet Issue', 'Internet Issue'),
         ('Application Issue', 'Application Issue'),
+        ('HR Related Issue', 'HR Related Issue'),  # Added HR related issue
     ]
 
-    ticket_id = models.CharField(max_length=10, unique=True, editable=False)  # Unique ticket identifier
+    ASSIGNED_TO_CHOICES = [
+        ('HR', 'HR'),
+        ('Admin', 'Admin'),
+    ]
+
+    ticket_id = models.CharField(max_length=36, unique=True, default=generate_ticket_id)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='tickets')  # User who raised the ticket
     issue_type = models.CharField(max_length=50, choices=ISSUE_TYPE_CHOICES)  # Type of issue reported
     subject = models.CharField(max_length=100, default="No subject")  # Add default value
     description = models.TextField()  # Detailed description of the issue
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Open')  # Ticket status
+    assigned_to = models.CharField(max_length=50, choices=ASSIGNED_TO_CHOICES, default='Admin')  # Who the ticket is assigned to
     created_at = models.DateTimeField(default=now)  # Time when ticket was created
     updated_at = models.DateTimeField(auto_now=True)  # Time when ticket was last updated
+
+   
 
     def save(self, *args, **kwargs):
         """Override save method to generate ticket ID if not provided."""
@@ -308,13 +336,14 @@ class ITSupportTicket(models.Model):
     def generate_ticket_id(self):
         """Generate a unique ticket ID based on the date."""
         today = now().strftime('%Y%m%d')
-        count = ITSupportTicket.objects.filter(created_at__date=now().date()).count() + 1
+        count = Support.objects.filter(created_at__date=now().date()).count() + 1
         return f"TK{today}{count:03}"
 
     def __str__(self):
         """Return a string representation of the ticket."""
-        return f"{self.ticket_id} - {self.issue_type} - {self.status}"
+        return f"{self.ticket_id} - {self.issue_type} - {self.status} - {self.assigned_to}"
 
+# IT Support Ticket model to track and manage IT support requests
 ''' ------------------------------------------- REmove employee AREA ------------------------------------------- '''
 
 # Employee model to store employee-specific information

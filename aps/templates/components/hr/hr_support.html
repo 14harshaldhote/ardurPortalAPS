@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h2 class="text-2xl font-semibold mb-4">IT Support - HR</h2>
+
+{% if user.is_authenticated and user.groups.filter(name='HR').exists %}
+    <div class="mb-4">
+        <p>HR Tickets:</p>
+        <table class="min-w-full bg-white border border-gray-300 rounded-lg">
+            <thead>
+                <tr>
+                    <th class="p-3 border-b">Ticket ID</th>
+                    <th class="p-3 border-b">Issue Type</th>
+                    <th class="p-3 border-b">Assigned To</th>
+                    <th class="p-3 border-b">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ticket in tickets %}
+                <tr>
+                    <td class="p-3">{{ ticket.ticket_id }}</td>
+                    <td class="p-3">{{ ticket.issue_type }}</td>
+                    <td class="p-3">{{ ticket.assigned_to }}</td>
+                    <td class="p-3">{{ ticket.status }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+    <p>You do not have access to this page.</p>
+{% endif %}
+
+{% endblock %}

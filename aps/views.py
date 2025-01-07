@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from django.contrib.auth.models import User, Group
-from .models import (UserSession, ITSupportTicket, Attendance, SystemError, 
-                    UserComplaint, FailedLoginAttempt, PasswordChange, 
+from .models import (UserSession, Attendance, SystemError, 
+                    Support, FailedLoginAttempt, PasswordChange, 
                     RoleAssignmentAudit, FeatureUsage, SystemUsage, 
                     Timesheet, Project, ProjectAssignment,
                     Message, Chat,UserDetails)
@@ -719,30 +719,6 @@ def is_employee(user):
 
 # IT Support View
 
-@login_required
-def it_support_home(request):
-    return render(request, 'components/employee/it_support.html')
-
-@login_required
-def create_ticket(request):
-    if request.method == 'POST':
-        issue_type = request.POST.get('issue_type')
-        description = request.POST.get('description')
-
-        if not issue_type or not description:
-            messages.error(request, "Issue Type and Description are required.")
-            return redirect('create_ticket')
-
-        ITSupportTicket.objects.create(
-            user=request.user,
-            issue_type=issue_type,
-            description=description,
-            status='Open'
-        )
-        messages.success(request, "Your ticket has been created successfully.")
-        return redirect('it_support_home')
-
-    return render(request, 'components/employee/create_ticket.html')
 
 @login_required
 def change_password(request):
@@ -1334,119 +1310,6 @@ def manager_project_view(request, action=None, project_id=None):
 
     return redirect('aps_manager:project_list')
 
-# @login_required
-# @user_passes_test(is_admin)
-# def project_management(request):
-#     return render(request, 'components/admin/projects.html')
-
-# @login_required
-# @user_passes_test(is_admin)  # You can adjust this if other roles should access this view
-# def project_view(request, project_id=None):
-#     """View for managing a project (creating, editing, viewing)."""
-    
-#     if project_id:
-#         project = get_object_or_404(Project, id=project_id)
-#     else:
-#         project = None  # If no project_id is provided, it means we are creating a new project
-    
-#     return render(request, 'components/admin/project/view_project.html', {'project': project})
-# # Admin can create new project
-# @login_required
-# @user_passes_test(is_admin)
-# def add_project(request):
-#     """View for adding a new project."""
-    
-#     # Define the form directly in the view
-#     class ProjectForm(forms.ModelForm):
-#         class Meta:
-#             model = Project
-#             fields = ['name', 'description', 'deadline', 'status']
-
-#     if request.method == 'POST':
-#         form = ProjectForm(request.POST)
-#         if form.is_valid():
-#             project = form.save()
-#             return redirect('view_project', project_id=project.id)  # Redirect to the project details page
-#     else:
-#         form = ProjectForm()
-
-#     return render(request, 'components/admin/project/add_project.html', {'form': form})
-
-# # Admin or Manager can assign a manager to a project
-# @login_required
-# @user_passes_test(is_admin)
-# def assign_manager(request, project_id):
-#     """View for assigning a manager to a project."""
-#     project = get_object_or_404(Project, id=project_id)
-#     if request.method == 'POST':
-#         manager_username = request.POST.get('manager')
-#         manager = get_object_or_404(User, username=manager_username)
-#         assignment = ProjectAssignment.objects.create(project=project, user=manager, role_in_project='Manager')
-#         return redirect('view_project', project_id=project.id)
-
-#     # Get a list of users that can be assigned as manager
-#     available_managers = User.objects.filter(groups__name="Manager")
-#     return render(request, 'components/admin/project/assign_manager.html', {'project': project, 'available_managers': available_managers})
-
-# # Admin or Manager can assign employees to a project
-# @login_required
-# @user_passes_test(lambda user: user.groups.filter(name__in=['Admin', 'Manager']).exists())
-# def assign_employee(request, project_id):
-#     """View for assigning an employee to a project."""
-#     project = get_object_or_404(Project, id=project_id)
-    
-#     # Define the form directly in the view
-#     class ProjectAssignmentForm(forms.ModelForm):
-#         class Meta:
-#             model = ProjectAssignment
-#             fields = ['user', 'role_in_project']
-
-#     if request.method == 'POST':
-#         form = ProjectAssignmentForm(request.POST)
-#         if form.is_valid():
-#             employee = form.cleaned_data['user']
-#             role = form.cleaned_data['role_in_project']
-#             ProjectAssignment.objects.create(project=project, user=employee, role_in_project=role)
-#             return redirect('view_project', project_id=project.id)
-#     else:
-#         form = ProjectAssignmentForm()
-
-#     # Get a list of users that can be assigned as employees
-#     available_employees = User.objects.filter(groups__name="Employee")
-#     return render(request, 'components/admin/project/assign_employee.html', {'project': project, 'form': form, 'available_employees': available_employees})
-
-# # Employees log their worked hours on a project
-# @login_required
-# @user_passes_test(lambda user: user.groups.filter(name__in=['Admin', 'Manager', 'Employee']).exists())
-# def log_hours(request, project_assignment_id):
-#     """View for employees to log hours worked on a project."""
-#     assignment = get_object_or_404(ProjectAssignment, id=project_assignment_id)
-#     if request.method == 'POST':
-#         hours_worked = request.POST.get('hours_worked')
-#         assignment.hours_worked += float(hours_worked)
-#         assignment.save()
-#         return redirect('view_project', project_id=assignment.project.id)
-
-#     return render(request, 'components/admin/project/log_hours.html', {'assignment': assignment})
-
-# # Admin and Manager can view project details including overdue status
-# @login_required
-# @user_passes_test(lambda user: user.groups.filter(name__in=['Admin', 'Manager']).exists())
-# def view_project(request, project_id):
-#     """View for viewing the project details, including overdue status."""
-#     project = get_object_or_404(Project, id=project_id)
-#     overdue = project.is_overdue()  # Check if the project is overdue
-#     assignments = ProjectAssignment.objects.filter(project=project)
-#     return render(request, 'components/admin/project/view_project.html', {'project': project, 'overdue': overdue, 'assignments': assignments})
-
-# # Admin and Manager can view all projects and their status
-# @login_required
-# @user_passes_test(lambda user: user.groups.filter(name__in=['Admin', 'Manager']).exists())
-# def all_projects(request):
-#     """View to list all projects with their status."""
-#     projects = Project.objects.all()
-#     return render(request, 'components/admin/project/all_projects.html', {'projects': projects})
-
 ''' ------------------------------------------- ATTENDACE AREA ------------------------------------------- '''
 
 # Views with optimized database queries
@@ -1759,6 +1622,124 @@ def admin_attendance_view(request):
         'date_range_start': date_range_start,
         'date_range_end': date_range_end,
     })
+
+'''------------------------------------------------ SUPPORT  AREA------------------------------------------------'''
+
+
+@login_required
+@user_passes_test(is_employee)
+def employee_support(request):
+    """Employee's Support Home with the ability to create a ticket."""
+    
+    print("Accessed employee_support view")
+
+    if request.method == 'POST':
+        print("POST request received")
+        issue_type = request.POST.get('issue_type')
+        description = request.POST.get('description')
+
+        print(f"Issue Type: {issue_type}")
+        print(f"Description: {description}")
+
+        # Validate the required fields
+        if not issue_type or not description:
+            print("Validation failed: Issue Type or Description is missing")
+            messages.error(request, "Issue Type and Description are required.")
+            return redirect('aps_employee:employee_support')
+
+        # Assign ticket based on issue type (HR issues go to HR, others to Admin)
+        assigned_to = 'Admin' if issue_type != 'HR Related Issue' else 'HR'
+        print(f"Assigned to: {assigned_to}")
+
+        try:
+            Support.objects.create(
+                user=request.user,
+                issue_type=issue_type,
+                description=description,
+                status='Open',
+                assigned_to=assigned_to
+            )
+            print("Ticket created successfully")
+            messages.success(request, "Your ticket has been created successfully.")
+        except Exception as e:
+            print(f"Error occurred: {str(e)}")
+            messages.error(request, f"An error occurred: {str(e)}")
+            return redirect('aps_employee:employee_support')
+
+    # Fetch tickets raised by the logged-in employee
+    tickets = Support.objects.filter(user=request.user).order_by('-created_at')
+    print(f"Fetched {tickets.count()} tickets for user {request.user}")
+
+    # Fetch issue type choices dynamically
+    issue_type_choices = [choice[0] for choice in Support.ISSUE_TYPE_CHOICES]
+    print(f"Issue type choices: {issue_type_choices}")
+
+    return render(request, 'components/employee/support.html', {
+        'tickets': tickets,
+        'issue_type_choices': issue_type_choices
+    })
+
+
+@login_required
+@user_passes_test(is_admin)
+def admin_support(request, ticket_id=None):
+    """Admin view to manage tickets, show ticket details, and update ticket status."""
+    print(f"User is authenticated: {request.user.is_authenticated}")
+    print(f"User has admin privileges: {request.user.groups.filter(name='Admin').exists()}")
+
+    try:
+        # If ticket_id is provided, show ticket details or handle updates
+        if ticket_id:
+            ticket = get_object_or_404(Support, ticket_id=ticket_id)
+
+            # Handle POST request to update ticket status
+            if request.method == 'POST':
+                status = request.POST.get('status')
+
+                # Ensure the status is valid
+                if status in dict(Support.STATUS_CHOICES):
+                    ticket.status = status
+                    ticket.save()
+                    messages.success(request, f"Ticket {ticket.ticket_id} updated to {status}.")
+                else:
+                    messages.error(request, "Invalid status selected.")
+
+            # After POST or GET request, render the ticket details
+            return render(request, 'components/admin/support_admin.html', {'ticket': ticket})
+
+        else:
+            # If no ticket_id is provided, display the list of all tickets
+            tickets = Support.objects.all().order_by('-created_at')
+
+            context = {
+                'open_tickets': tickets.filter(status='Open').count(),
+                'in_progress_tickets': tickets.filter(status='In Progress').count(),
+                'resolved_tickets': tickets.filter(status='Resolved').count(),
+                'tickets': tickets,
+                'is_admin': request.user.groups.filter(name='Admin').exists(),  # Pass is_admin status to template
+            }
+
+            return render(request, 'components/admin/support_admin.html', context)
+
+    except Exception as e:
+        # Catch any errors, show an error message, and redirect to the admin support page
+        messages.error(request, f"An error occurred while managing tickets: {str(e)}")
+        return redirect('aps_admin:admin_support')
+@login_required
+@user_passes_test(is_hr)
+def hr_support(request):
+    """HR view to manage HR-related tickets."""
+    try:
+        # Fetch HR-related tickets (assigned to HR)
+        tickets = Support.objects.filter(assigned_to='HR').order_by('-created_at')
+
+        # Render the HR support page with tickets
+        return render(request, 'components/hr/hr_support.html', {'tickets': tickets})
+
+    except Exception as e:
+        messages.error(request, f"An error occurred while fetching HR tickets: {str(e)}")
+        return redirect('dashboard')
+
 '''--------------------------- CHAT AREA------------------------'''
 # views.py
 from django.shortcuts import render

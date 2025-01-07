@@ -21,9 +21,9 @@
         <!-- Employee Specific -->
         {% if is_employee %}
         <li>
-            <a href="{% url 'aps_employee:it_support_home' %}"
+            <a href="{% url 'aps_employee:employee_support' %}"
                 class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
-                IT Support
+                Support
             </a>
         </li>
         <li>
@@ -122,18 +122,8 @@
                 User Sessions
             </a>
         </li>
-        <li>
-            <a href="{% url 'aps_admin:it_support_admin' %}"
-                class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
-                IT Support
-            </a>
-        </li>
-        <li>
-            <a href="{% url 'aps_admin:view_leave_requests_admin' %}"
-                class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
-                Leave Requests
-            </a>
-        </li>
+       
+     
         <li>
             <a href="{% url 'aps_admin:report' %}"
                 class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
@@ -151,6 +141,12 @@
             <a href="{% url 'aps_admin:attendance' %}"
                 class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
                 Admin Attendance
+            </a>
+        </li>
+        <li>
+            <a href="{% url 'aps_admin:admin_support' %}"
+                class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
+                Support
             </a>
         </li>
         {% endif %}
