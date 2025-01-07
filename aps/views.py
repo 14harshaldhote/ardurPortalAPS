@@ -267,27 +267,16 @@ def hr_dashboard(request):
 
 @user_passes_test(is_hr)
 def hr_user_detail(request, user_id):
-    # Prevent HR from editing their own details through this view
-    if request.user.id == int(user_id):
-        messages.error(request, "Please use the profile section to edit your own details.")
-        return redirect('aps_hr:hr_dashboard')
-
+    # Add logging for initial request
     print(f"Accessing details for user_id: {user_id}")
     
-    # Get the user being edited
     user = get_object_or_404(User, id=user_id)
-    print(f"Editing user: {user.username} (ID: {user.id})")
-    
-    # Get or create user details
+    print(f"Accessing details for user_id after get_object_or_404: {user_id}")
     user_detail, created = UserDetails.objects.get_or_create(user=user)
 
     if request.method == 'POST':
         try:
-            # Verify the user being edited matches the URL
-            editing_user_id = request.POST.get('editing_user_id')
-            if editing_user_id and int(editing_user_id) != int(user_id):
-                raise ValueError(f"Invalid user ID in form submission. Expected {user_id}, got {editing_user_id}")
-
+            # Log the incoming request data
             print(f"Processing POST request for user_id: {user_id}")
             print("POST data received:", request.POST)
 
@@ -369,74 +358,6 @@ def hr_user_detail(request, user_id):
         'gender_choices': UserDetails._meta.get_field('gender').choices,
     })
 
-
-# @login_required
-# @user_passes_test(is_hr)
-# def hr_user_detail(request, user_id):
-#     user = get_object_or_404(User, id=user_id)
-#     user_detail, created = UserDetails.objects.get_or_create(user=user)
-
-#     if request.method == 'POST':
-#         try:
-#             # Print the form data for debugging
-#             print("POST data received:", request.POST)
-
-#             # Get form data without default values
-#             user_detail.dob = request.POST.get('dob') or None
-#             user_detail.blood_group = request.POST.get('blood_group') or None
-#             user_detail.hire_date = request.POST.get('hire_date') or None
-#             user_detail.gender = request.POST.get('gender') or None
-#             user_detail.panno = request.POST.get('panno') or None
-#             user_detail.job_description = request.POST.get('job_description') or None
-#             user_detail.employment_status = request.POST.get('employment_status') or None
-#             user_detail.emergency_contact_address = request.POST.get('emergency_contact_address') or None
-#             user_detail.emergency_contact_primary = request.POST.get('emergency_contact_primary') or None
-#             user_detail.emergency_contact_name = request.POST.get('emergency_contact_name') or None
-#             user_detail.start_date = request.POST.get('start_date') or None
-#             user_detail.work_location = request.POST.get('work_location') or None
-#             user_detail.contact_number_primary = request.POST.get('contact_number_primary') or None
-#             user_detail.personal_email = request.POST.get('personal_email') or None
-#             user_detail.aadharno = request.POST.get('aadharno') or None
-
-#             # Print the updated user_detail object for debugging
-#             # Print the updated user_detail object for debugging
-#             print("User Detail before save:", user_detail)
-
-#             # Validate contact number and Aadhar number only if they are provided
-#             if user_detail.contact_number_primary and len(user_detail.contact_number_primary) != 10:
-#                 raise ValueError('Primary contact number must be 10 digits.')
-            
-#             # Remove spaces from Aadhar number before validation
-#             if user_detail.aadharno:
-#                 aadhar_cleaned = user_detail.aadharno.replace(' ', '')
-#                 if len(aadhar_cleaned) != 12:
-#                     raise ValueError('Aadhar number must be 12 digits.')
-                
-
-#             print("User Detail before save:", user_detail)
-#             print("Updated fields:", user_detail.__dict__)
-#             user_detail.save()
-#             print("User Detail after save:", user_detail)
-
-
-        
-#             messages.success(request, 'User details updated successfully.')
-#             return redirect('aps_hr:hr_dashboard')
-
-#         except ValueError as e:
-#             # Catch validation errors and display the message
-#             print("Validation Error:", str(e))
-#             messages.error(request, str(e))
-#         except Exception as e:
-#             # Catch general errors and display the message
-#             print("Error updating user details:", str(e))
-#             messages.error(request, f'Error updating user details: {str(e)}')
-
-#     return render(request, 'components/hr/hr_user_detail.html', {
-#         'user_detail': user_detail,
-#         'blood_group_choices': UserDetails._meta.get_field('blood_group').choices,
-#         'gender_choices': UserDetails._meta.get_field('gender').choices,
-#     })
 
 @login_required
 @user_passes_test(is_manager)
@@ -1529,15 +1450,85 @@ def manager_project_view(request, action=None, project_id=None):
 ''' ------------------------------------------- ATTENDACE AREA ------------------------------------------- '''
 
 # Views with optimized database queries
+import calendar
+
 @login_required
 def employee_attendance_view(request):
-    # Get the user's attendance data
-    user_attendance = Attendance.objects.filter(user=request.user).order_by('-date')
+    # Get the month and year from the request, fallback to the current month/year
+    current_date = datetime.now()
+    current_month = int(request.GET.get('month', current_date.month))
+    current_year = int(request.GET.get('year', current_date.year))
+    current_month_name = calendar.month_name[current_month]
     
-    # Pagination setup (show 10 records per page)
+    # Get the previous and next month data
+    prev_month = current_month - 1 if current_month > 1 else 12
+    next_month = current_month + 1 if current_month < 12 else 1
+    prev_year = current_year if current_month > 1 else current_year - 1
+    next_year = current_year if current_month < 12 else current_year + 1
+    
+    # Get the calendar for the current month
+    cal = calendar.Calendar(firstweekday=6)  # Start week on Sunday
+    days_in_month = cal.monthdayscalendar(current_year, current_month)
+    
+    # Fetch attendance and leave data
+    user_attendance = Attendance.objects.filter(user=request.user, date__month=current_month, date__year=current_year)
+    leaves = Leave.objects.filter(user=request.user, start_date__month=current_month, start_date__year=current_year)
+    
+    # Attendance statistics
+    total_present = user_attendance.filter(status='Present').count()
+    total_absent = user_attendance.filter(status='Absent').count()
+    total_leave = user_attendance.filter(status='On Leave').count()
+    total_wfh = user_attendance.filter(status='Work From Home').count()
+
+    # Leave balance
+    leave_balance = Leave.get_leave_balance(request.user)
+
+    # Calculate Loss of Pay for the month
+    total_lop_days = Leave.calculate_lop_per_month(request.user, current_month, current_year)
+
+    # Prepare calendar data (mark leave days)
+    calendar_data = []
+    for week in days_in_month:
+        week_data = []
+        for day in week:
+            if day == 0:
+                week_data.append({'empty': True})
+            else:
+                date = datetime(current_year, current_month, day)
+                leave_status = None
+                leave_type = None
+
+                # Check if the day is a leave day
+                leave_on_day = leaves.filter(start_date__lte=date, end_date__gte=date, status='Approved').first()
+                if leave_on_day:
+                    leave_status = 'On Leave'
+                    leave_type = leave_on_day.leave_type
+                
+                # Check attendance for the day
+                attendance_on_day = user_attendance.filter(date=date).first()
+                if attendance_on_day:
+                    leave_status = attendance_on_day.status
+                    clock_in = attendance_on_day.clock_in_time if attendance_on_day.clock_in_time else None
+                    clock_out = attendance_on_day.clock_out_time if attendance_on_day.clock_out_time else None
+                    total_hours = attendance_on_day.total_hours if attendance_on_day.total_hours else None
+                else:
+                    clock_in = clock_out = total_hours = None
+                
+                week_data.append({
+                    'date': day,
+                    'is_today': date.date() == current_date.date(),
+                    'status': leave_status,
+                    'leave_type': leave_type,
+                    'clock_in': clock_in,
+                    'clock_out': clock_out,
+                    'total_hours': total_hours,
+                    'empty': False
+                })
+        calendar_data.append(week_data)
+
+    # Pagination setup for attendance history
     paginator = Paginator(user_attendance, 10)
     page = request.GET.get('page')
-    
     try:
         records = paginator.get_page(page)
     except EmptyPage:
@@ -1545,17 +1536,20 @@ def employee_attendance_view(request):
     except PageNotAnInteger:
         records = paginator.page(1)
 
-    # Attendance statistics
-    total_present = user_attendance.filter(status='Present').count()
-    total_absent = user_attendance.filter(status='Absent').count()
-    total_leave = user_attendance.filter(status='On Leave').count()
-    total_wfh = user_attendance.filter(status='Work From Home').count()
-
-    return render(request, 'components/employee/employee_attendance.html', {
+    return render(request, 'components/employee/calander.html', {
+        'current_month': current_month_name,
+        'current_year': current_year,
+        'prev_month': prev_month,
+        'next_month': next_month,
+        'prev_year': prev_year,
+        'next_year': next_year,
+        'calendar_data': calendar_data,
         'total_present': total_present,
         'total_absent': total_absent,
         'total_leave': total_leave,
         'total_wfh': total_wfh,
+        'leave_balance': leave_balance,
+        'total_lop_days': total_lop_days,
         'records': records
     })
 
@@ -1588,7 +1582,6 @@ from django.template.loader import render_to_string
 import csv
 import openpyxl
 from datetime import datetime, timedelta
-
 @login_required
 @user_passes_test(is_hr)
 def hr_attendance_view(request):
@@ -1599,13 +1592,28 @@ def hr_attendance_view(request):
     username_filter = request.GET.get('username', '')
     status_filter = request.GET.get('status', '')
     date_filter = request.GET.get('date', '')
+    date_range_start = request.GET.get('start_date', '')
+    date_range_end = request.GET.get('end_date', '')
 
     if username_filter:
         all_attendance = all_attendance.filter(user__username__icontains=username_filter)
     if status_filter:
         all_attendance = all_attendance.filter(status=status_filter)
     if date_filter:
-        all_attendance = all_attendance.filter(date=date_filter)
+        try:
+            date_obj = datetime.strptime(date_filter, '%Y-%m-%d').date()
+            all_attendance = all_attendance.filter(date=date_obj)
+        except ValueError:
+            pass  # If the date format is incorrect, it will be ignored
+
+    # Filtering by date range
+    if date_range_start and date_range_end:
+        try:
+            start_date = datetime.strptime(date_range_start, '%Y-%m-%d').date()
+            end_date = datetime.strptime(date_range_end, '%Y-%m-%d').date()
+            all_attendance = all_attendance.filter(date__range=[start_date, end_date])
+        except ValueError:
+            pass  # Handle invalid date format
 
     # Handle export requests before pagination
     export_type = request.GET.get('export')
@@ -1626,23 +1634,17 @@ def hr_attendance_view(request):
     present_count = all_attendance.filter(status='Present').count()
     absent_count = all_attendance.filter(status='Absent').count()
     leave_count = all_attendance.filter(status='On Leave').count()
+    lop_count = all_attendance.filter(status='Loss of Pay').count()  # Add Loss of Pay count
 
-    # Calculate working hours
+    # Optimized working hours calculation
     for record in all_records:
-        clock_in_time = record.clock_in_time
-        clock_out_time = record.clock_out_time
-        if clock_in_time and clock_out_time:
-            # Convert time to datetime for calculation
-            today = datetime.today().date()
-            clock_in_datetime = datetime.combine(today, clock_in_time)
-            clock_out_datetime = datetime.combine(today, clock_out_time)
-            
-            # Calculate working hours
+        if record.clock_in_time and record.clock_out_time:
+            clock_in_datetime = datetime.combine(record.date, record.clock_in_time)
+            clock_out_datetime = datetime.combine(record.date, record.clock_out_time)
             working_hours = clock_out_datetime - clock_in_datetime
-            # Format working hours in hours and minutes (hh:mm)
             hours = working_hours.seconds // 3600
             minutes = (working_hours.seconds % 3600) // 60
-            record.working_hours = f"{hours}h {minutes}m"  # Store as formatted string
+            record.working_hours = f"{hours}h {minutes}m"
         else:
             record.working_hours = None
 
@@ -1651,21 +1653,24 @@ def hr_attendance_view(request):
         'username_filter': username_filter,
         'status_filter': status_filter,
         'date_filter': date_filter,
+        'date_range_start': date_range_start,
+        'date_range_end': date_range_end,
         'present_count': present_count,
         'absent_count': absent_count,
         'leave_count': leave_count,
+        'lop_count': lop_count,  # Include Loss of Pay count in the template context
     })
+
 
 def export_attendance_csv(queryset):
     response = HttpResponse(content_type='text/csv')
     response['Content-Disposition'] = 'attachment; filename="attendance.csv"'
 
     writer = csv.writer(response)
-    writer.writerow(['Employee', 'Username', 'Status', 'Date'])
+    writer.writerow(['Employee', 'Username', 'Status', 'Date', 'Working Hours'])
 
-    # Fetching required fields only
     records = queryset.values(
-        'user__first_name', 'user__last_name', 'user__username', 'status', 'date'
+        'user__first_name', 'user__last_name', 'user__username', 'status', 'date', 'working_hours'
     )
     for record in records:
         writer.writerow([
@@ -1673,6 +1678,7 @@ def export_attendance_csv(queryset):
             record['user__username'],
             record['status'],
             record['date'].strftime('%Y-%m-%d'),
+            record['working_hours'],
         ])
     return response
 
@@ -1684,11 +1690,10 @@ def export_attendance_excel(queryset):
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Attendance"
-    ws.append(['Employee', 'Username', 'Status', 'Date'])
+    ws.append(['Employee', 'Username', 'Status', 'Date', 'Working Hours'])
 
-    # Fetching required fields only
     records = queryset.values(
-        'user__first_name', 'user__last_name', 'user__username', 'status', 'date'
+        'user__first_name', 'user__last_name', 'user__username', 'status', 'date', 'working_hours'
     )
     for record in records:
         ws.append([
@@ -1696,6 +1701,7 @@ def export_attendance_excel(queryset):
             record['user__username'],
             record['status'],
             record['date'].strftime('%Y-%m-%d'),
+            record['working_hours'],
         ])
     wb.save(response)
     return response
@@ -1704,33 +1710,37 @@ def export_attendance_excel(queryset):
 @login_required
 @user_passes_test(is_admin)
 def admin_attendance_view(request):
-    # Get filter values from GET parameters
+    # Similar improvements for admin view
     username_filter = request.GET.get('username', '')
     status_filter = request.GET.get('status', '')
     date_filter = request.GET.get('date', '')
+    date_range_start = request.GET.get('start_date', '')
+    date_range_end = request.GET.get('end_date', '')
 
-    # Filter the attendance summary based on the filters
     attendance_summary = Attendance.objects.all()
 
     if username_filter:
         attendance_summary = attendance_summary.filter(user__username__icontains=username_filter)
-
     if status_filter:
         attendance_summary = attendance_summary.filter(status=status_filter)
-
     if date_filter:
         try:
             date_obj = datetime.strptime(date_filter, '%Y-%m-%d').date()
             attendance_summary = attendance_summary.filter(date=date_obj)
         except ValueError:
             pass  # If the date format is incorrect, it will be ignored
+    if date_range_start and date_range_end:
+        try:
+            start_date = datetime.strptime(date_range_start, '%Y-%m-%d').date()
+            end_date = datetime.strptime(date_range_end, '%Y-%m-%d').date()
+            attendance_summary = attendance_summary.filter(date__range=[start_date, end_date])
+        except ValueError:
+            pass  # Handle invalid date format
 
-    # Optimized query with selected fields
     attendance_summary = attendance_summary.values(
-        'user', 'user__first_name', 'user__last_name', 'user__username', 'status', 'date'
+        'user', 'user__first_name', 'user__last_name', 'user__username', 'status', 'date', 'working_hours'
     ).order_by('-date')
 
-    # Pagination setup
     paginator = Paginator(attendance_summary, 10)
     page = request.GET.get('page', 1)
 
@@ -1745,10 +1755,10 @@ def admin_attendance_view(request):
         'summary': summary_records,
         'username_filter': username_filter,
         'status_filter': status_filter,
-        'date_filter': date_filter
+        'date_filter': date_filter,
+        'date_range_start': date_range_start,
+        'date_range_end': date_range_end,
     })
-
-
 '''--------------------------- CHAT AREA------------------------'''
 # views.py
 from django.shortcuts import render

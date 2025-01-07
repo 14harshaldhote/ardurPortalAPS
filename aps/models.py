@@ -162,6 +162,24 @@ class Leave(models.Model):
             'pending_leave': pending_leaves,
             'available_leave': available_leave,
         }
+    @classmethod
+    def calculate_lop_per_month(cls, user, month, year):
+        """Calculate the number of Loss of Pay days taken per month for the user"""
+        lop_leaves = cls.objects.filter(
+            user=user,
+            leave_type='Loss of Pay',
+            status='Approved',
+            start_date__year=year,
+            start_date__month=month
+        )
+        
+        # Count total LOP days in the given month
+        total_lop_days = 0
+        for leave in lop_leaves:
+            # Add leave days for each leave request
+            total_lop_days += leave.leave_days
+
+        return total_lop_days
 
 
     
@@ -297,6 +315,7 @@ class ITSupportTicket(models.Model):
         """Return a string representation of the ticket."""
         return f"{self.ticket_id} - {self.issue_type} - {self.status}"
 
+''' ------------------------------------------- REmove employee AREA ------------------------------------------- '''
 
 # Employee model to store employee-specific information
 class Employee(models.Model):
