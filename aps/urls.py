@@ -30,7 +30,7 @@ admin_patterns = [
     path('attendance/', views.admin_attendance_view, name='attendance'),  # Admin attendance summary
 
     path('support/', views.admin_support, name='admin_support'),
-    path('support/<int:ticket_id>/', views.admin_support, name='admin_support_with_ticket'),
+    path('support/<uuid:ticket_id>/', views.admin_support, name='admin_support_with_ticket'),
 
 ]
 
@@ -59,8 +59,9 @@ hr_patterns = [
 
     path('hr/dashboard/', views.hr_dashboard, name='hr_dashboard'),
     path('user/<int:user_id>/', views.hr_user_detail, name='hr_user_detail'),
-    path('support/', views.hr_support, name='hr_support'),
 
+    path('hr/support/', views.hr_support, name='hr_support'),
+    path('hr/support/<uuid:ticket_id>/', views.hr_support, name='hr_support_with_ticket'),  
 
 ]
 

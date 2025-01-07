@@ -1637,9 +1637,11 @@ def employee_support(request):
         print("POST request received")
         issue_type = request.POST.get('issue_type')
         description = request.POST.get('description')
+        subject = request.POST.get('subject', 'No subject')  # Added subject to the form
 
         print(f"Issue Type: {issue_type}")
         print(f"Description: {description}")
+        print(f"Subject: {subject}")
 
         # Validate the required fields
         if not issue_type or not description:
@@ -1652,10 +1654,12 @@ def employee_support(request):
         print(f"Assigned to: {assigned_to}")
 
         try:
+            # Create a new support ticket
             Support.objects.create(
                 user=request.user,
                 issue_type=issue_type,
                 description=description,
+                subject=subject,  # Store the subject entered by the employee
                 status='Open',
                 assigned_to=assigned_to
             )
@@ -1679,67 +1683,108 @@ def employee_support(request):
         'issue_type_choices': issue_type_choices
     })
 
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.contrib import messages
+from .models import Support
+
+def is_admin(user):
+    return user.groups.filter(name='Admin').exists()
 
 @login_required
 @user_passes_test(is_admin)
 def admin_support(request, ticket_id=None):
-    """Admin view to manage tickets, show ticket details, and update ticket status."""
-    print(f"User is authenticated: {request.user.is_authenticated}")
-    print(f"User has admin privileges: {request.user.groups.filter(name='Admin').exists()}")
-
     try:
-        # If ticket_id is provided, show ticket details or handle updates
         if ticket_id:
             ticket = get_object_or_404(Support, ticket_id=ticket_id)
-
-            # Handle POST request to update ticket status
+            
             if request.method == 'POST':
                 status = request.POST.get('status')
-
-                # Ensure the status is valid
                 if status in dict(Support.STATUS_CHOICES):
                     ticket.status = status
                     ticket.save()
                     messages.success(request, f"Ticket {ticket.ticket_id} updated to {status}.")
+                    return redirect('aps_admin:admin_support')
                 else:
                     messages.error(request, "Invalid status selected.")
-
-            # After POST or GET request, render the ticket details
-            return render(request, 'components/admin/support_admin.html', {'ticket': ticket})
-
-        else:
-            # If no ticket_id is provided, display the list of all tickets
-            tickets = Support.objects.all().order_by('-created_at')
-
-            context = {
-                'open_tickets': tickets.filter(status='Open').count(),
-                'in_progress_tickets': tickets.filter(status='In Progress').count(),
-                'resolved_tickets': tickets.filter(status='Resolved').count(),
-                'tickets': tickets,
-                'is_admin': request.user.groups.filter(name='Admin').exists(),  # Pass is_admin status to template
-            }
-
-            return render(request, 'components/admin/support_admin.html', context)
-
+            
+            return render(request, 'components/admin/support_admin.html', {
+                'ticket': ticket,
+                'is_admin': True
+            })
+        
+        # List view
+        tickets = Support.objects.all()
+        context = {
+            'tickets': tickets,
+            'open_tickets': tickets.filter(status='Open').count(),
+            'in_progress_tickets': tickets.filter(status='In Progress').count(),
+            'resolved_tickets': tickets.filter(status='Resolved').count(),
+            'is_admin': True
+        }
+        return render(request, 'components/admin/support_admin.html', context)
+        
     except Exception as e:
-        # Catch any errors, show an error message, and redirect to the admin support page
-        messages.error(request, f"An error occurred while managing tickets: {str(e)}")
+        messages.error(request, "An error occurred while managing tickets.")
         return redirect('aps_admin:admin_support')
+    
+
+
+def is_hr(user):
+    return user.groups.filter(name='HR').exists()
+def is_hr(user):
+    return user.groups.filter(name='HR').exists()
+
 @login_required
 @user_passes_test(is_hr)
-def hr_support(request):
-    """HR view to manage HR-related tickets."""
+def hr_support(request, ticket_id=None):
+    """HR view to manage tickets and see ticket details."""
     try:
-        # Fetch HR-related tickets (assigned to HR)
-        tickets = Support.objects.filter(assigned_to='HR').order_by('-created_at')
-
-        # Render the HR support page with tickets
-        return render(request, 'components/hr/hr_support.html', {'tickets': tickets})
-
+        if ticket_id:
+            # Handle single ticket view and updates
+            ticket = get_object_or_404(Support, ticket_id=ticket_id)
+            
+            if request.method == 'POST':
+                status = request.POST.get('status')
+                if status in dict(Support.STATUS_CHOICES):
+                    # Only allow HR to update tickets assigned to HR
+                    if ticket.assigned_to == 'HR':
+                        ticket.status = status
+                        ticket.save()
+                        messages.success(request, f"Ticket {ticket.ticket_id} updated to {status}.")
+                        return redirect('aps_hr:hr_support')
+                    else:
+                        messages.error(request, "You can only update HR-assigned tickets.")
+                else:
+                    messages.error(request, "Invalid status selected.")
+            
+            return render(request, 'components/hr/support_hr.html', {
+                'ticket': ticket,
+                'is_hr': True,
+                'can_update': ticket.assigned_to == 'HR'  # Only show update form for HR tickets
+            })
+        
+        # List view - Show only HR-relevant tickets
+        tickets = Support.objects.filter(
+            Q(assigned_to='HR') |  # Tickets assigned to HR
+            Q(issue_type='HR Related Issue')  # HR-related issues
+        ).order_by('-created_at')
+        
+        context = {
+            'tickets': tickets,
+            'open_tickets': tickets.filter(status='Open').count(),
+            'in_progress_tickets': tickets.filter(status='In Progress').count(),
+            'resolved_tickets': tickets.filter(status='Resolved').count(),
+            'is_hr': True,
+            'total_tickets': tickets.count()
+        }
+        
+        return render(request, 'components/hr/support_hr.html', context)
+        
     except Exception as e:
-        messages.error(request, f"An error occurred while fetching HR tickets: {str(e)}")
-        return redirect('dashboard')
-
+        print(f"HR Support Error: {str(e)}")  # For debugging
+        messages.error(request, "An error occurred while managing tickets.")
+        return redirect('aps_hr:hr_support')
 '''--------------------------- CHAT AREA------------------------'''
 # views.py
 from django.shortcuts import render

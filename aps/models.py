@@ -286,13 +286,15 @@ class Attendance(models.Model):
             f"status: {self.status}, clock-in: {self.clock_in_time}, "
             f"clock-out: {self.clock_out_time}, total hours: {self.total_hours}")
 
-'''-------------------------------------------- IT SUPPORT AREA ---------------------------------------'''
+'''-------------------------------------------- SUPPORT AREA ---------------------------------------'''
 import uuid
+from django.db import models
+from django.utils.timezone import now
 
 def generate_ticket_id():
-    return str(uuid.uuid4())[:10]  # Ensure the ID is within a reasonable length
+    """Generate a unique ticket ID based on UUID."""
+    return uuid.uuid4()  # This will generate a full UUID
 
-# Support model to track and manage support requests
 class Support(models.Model):
     STATUS_CHOICES = [
         ('Open', 'Open'),
@@ -307,7 +309,7 @@ class Support(models.Model):
         ('Network Issue', 'Network Issue'),
         ('Internet Issue', 'Internet Issue'),
         ('Application Issue', 'Application Issue'),
-        ('HR Related Issue', 'HR Related Issue'),  # Added HR related issue
+        ('HR Related Issue', 'HR Related Issue'),
     ]
 
     ASSIGNED_TO_CHOICES = [
@@ -315,17 +317,16 @@ class Support(models.Model):
         ('Admin', 'Admin'),
     ]
 
-    ticket_id = models.CharField(max_length=36, unique=True, default=generate_ticket_id)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='tickets')  # User who raised the ticket
-    issue_type = models.CharField(max_length=50, choices=ISSUE_TYPE_CHOICES)  # Type of issue reported
-    subject = models.CharField(max_length=100, default="No subject")  # Add default value
-    description = models.TextField()  # Detailed description of the issue
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Open')  # Ticket status
-    assigned_to = models.CharField(max_length=50, choices=ASSIGNED_TO_CHOICES, default='Admin')  # Who the ticket is assigned to
-    created_at = models.DateTimeField(default=now)  # Time when ticket was created
-    updated_at = models.DateTimeField(auto_now=True)  # Time when ticket was last updated
 
-   
+    ticket_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)  # UUID ticket ID
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='tickets')  # User who raised the ticket
+    issue_type = models.CharField(max_length=50, choices=ISSUE_TYPE_CHOICES)
+    subject = models.CharField(max_length=100, default="No subject")
+    description = models.TextField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Open')
+    assigned_to = models.CharField(max_length=50, choices=ASSIGNED_TO_CHOICES, default='Admin')
+    created_at = models.DateTimeField(default=now)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
         """Override save method to generate ticket ID if not provided."""
@@ -334,10 +335,8 @@ class Support(models.Model):
         super().save(*args, **kwargs)
 
     def generate_ticket_id(self):
-        """Generate a unique ticket ID based on the date."""
-        today = now().strftime('%Y%m%d')
-        count = Support.objects.filter(created_at__date=now().date()).count() + 1
-        return f"TK{today}{count:03}"
+        """Generate a unique ticket ID based on UUID."""
+        return uuid.uuid4()
 
     def __str__(self):
         """Return a string representation of the ticket."""
