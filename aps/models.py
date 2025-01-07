@@ -353,6 +353,7 @@ class UserDetails(models.Model):
             ('terminated', 'Terminated'),
             ('resigned', 'Resigned'),
             ('suspended', 'Suspended'),
+            ('absconding', 'Absconding'),
         ],
         blank=True,         null=True, 
  # No default value here

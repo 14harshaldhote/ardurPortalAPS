@@ -11,11 +11,12 @@
             </a>
         </li>
         <li>
-            <a href="#"
+            <a href="{% url 'user_profile' request.user.id %}"
                 class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
                 Profile
             </a>
         </li>
+        
 
         <!-- Employee Specific -->
         {% if is_employee %}
@@ -44,12 +45,7 @@
             </a>
 
         </li>
-        <li class="relative">
-            <a href="{% url 'aps_employee:employee_profile' %}"
-                class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
-                My Profile
-            </a>
-        </li>
+     
 
         {% endif %}
 
@@ -110,24 +106,12 @@
             </a>
         </li>
         <li>
-            <a href="{% url 'aps_manager:manager_dashboard' %}"
+            <a href="{% url 'aps_manager:manager_employee_profile' %}"
                 class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
-                Manager Dashboard
+                Employee Details
             </a>
         </li>
-        <li>
-            {% for user_detail in team_members %}
-            {% if user_detail.id %}
-            <a href="{% url 'aps_manager:manager_user_detail' user_id=user_detail.id %}"
-                class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
-                View Team Member
-            </a>
-            {% else %}
-            <p>No user details available.</p>
-            {% endif %}
-            {% endfor %}
-
-        </li>
+        
         {% endif %}
 
         <!-- Admin Specific -->

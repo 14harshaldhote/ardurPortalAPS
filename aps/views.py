@@ -265,62 +265,103 @@ def hr_dashboard(request):
         'role': 'HR'
     })
 
-
-@login_required
 @user_passes_test(is_hr)
 def hr_user_detail(request, user_id):
+    # Prevent HR from editing their own details through this view
+    if request.user.id == int(user_id):
+        messages.error(request, "Please use the profile section to edit your own details.")
+        return redirect('aps_hr:hr_dashboard')
+
+    print(f"Accessing details for user_id: {user_id}")
+    
+    # Get the user being edited
     user = get_object_or_404(User, id=user_id)
+    print(f"Editing user: {user.username} (ID: {user.id})")
+    
+    # Get or create user details
     user_detail, created = UserDetails.objects.get_or_create(user=user)
 
     if request.method == 'POST':
         try:
-            # Print the form data for debugging
+            # Verify the user being edited matches the URL
+            editing_user_id = request.POST.get('editing_user_id')
+            if editing_user_id and int(editing_user_id) != int(user_id):
+                raise ValueError(f"Invalid user ID in form submission. Expected {user_id}, got {editing_user_id}")
+
+            print(f"Processing POST request for user_id: {user_id}")
             print("POST data received:", request.POST)
 
-            # Get form data without default values
-            user_detail.dob = request.POST.get('dob') or None
-            user_detail.blood_group = request.POST.get('blood_group') or None
-            user_detail.hire_date = request.POST.get('hire_date') or None
-            user_detail.gender = request.POST.get('gender') or None
-            user_detail.panno = request.POST.get('panno') or None
-            user_detail.job_description = request.POST.get('job_description') or None
-            user_detail.employment_status = request.POST.get('employment_status') or None
-            user_detail.emergency_contact_address = request.POST.get('emergency_contact_address') or None
-            user_detail.emergency_contact_primary = request.POST.get('emergency_contact_primary') or None
-            user_detail.emergency_contact_name = request.POST.get('emergency_contact_name') or None
-            user_detail.start_date = request.POST.get('start_date') or None
-            user_detail.work_location = request.POST.get('work_location') or None
-            user_detail.contact_number_primary = request.POST.get('contact_number_primary') or None
-            user_detail.personal_email = request.POST.get('personal_email') or None
-            user_detail.aadharno = request.POST.get('aadharno') or None
+            # Validate contact number if provided
+            contact_number = request.POST.get('contact_number_primary')
+            if contact_number:
+                if not contact_number.isdigit():
+                    raise ValueError('Contact number must contain only digits.')
+                if len(contact_number) != 10:
+                    raise ValueError('Contact number must be exactly 10 digits.')
 
-            # Print the updated user_detail object for debugging
-            # Print the updated user_detail object for debugging
-            print("User Detail before save:", user_detail)
-
-            # Validate contact number and Aadhar number only if they are provided
-            if user_detail.contact_number_primary and len(user_detail.contact_number_primary) != 10:
-                raise ValueError('Primary contact number must be 10 digits.')
-            
-            # Remove spaces from Aadhar number before validation
-            if user_detail.aadharno:
-                aadhar_cleaned = user_detail.aadharno.replace(' ', '')
+            # Validate Aadhar number if provided
+            aadhar_number = request.POST.get('aadharno')
+            if aadhar_number:
+                aadhar_cleaned = aadhar_number.replace(' ', '')
+                if not aadhar_cleaned.isdigit():
+                    raise ValueError('Aadhar number must contain only digits.')
                 if len(aadhar_cleaned) != 12:
-                    raise ValueError('Aadhar number must be 12 digits.')
+                    raise ValueError('Aadhar number must be exactly 12 digits.')
 
+            # Update user details
+            fields_to_update = {
+                'dob': request.POST.get('dob'),
+                'blood_group': request.POST.get('blood_group'),
+                'hire_date': request.POST.get('hire_date'),
+                'gender': request.POST.get('gender'),
+                'panno': request.POST.get('panno'),
+                'job_description': request.POST.get('job_description'),
+                'employment_status': request.POST.get('employment_status'),
+                'emergency_contact_address': request.POST.get('emergency_contact_address'),
+                'emergency_contact_primary': request.POST.get('emergency_contact_primary'),
+                'emergency_contact_name': request.POST.get('emergency_contact_name'),
+                'start_date': request.POST.get('start_date'),
+                'work_location': request.POST.get('work_location'),
+                'contact_number_primary': contact_number,
+                'personal_email': request.POST.get('personal_email'),
+                'aadharno': aadhar_number
+            }
+
+            # Remove None values to prevent overwriting with None
+            fields_to_update = {k: v for k, v in fields_to_update.items() if v is not None}
+
+            # Update the user_detail object
+            for field, value in fields_to_update.items():
+                setattr(user_detail, field, value)
+
+            # Log the state before saving
+            print("User Detail before save:", user_detail.__dict__)
+            
+            # Save the changes
             user_detail.save()
-        
+            
+            # Log the state after saving
+            print("User Detail after save:", user_detail.__dict__)
+
             messages.success(request, 'User details updated successfully.')
             return redirect('aps_hr:hr_dashboard')
 
         except ValueError as e:
-            # Catch validation errors and display the message
-            print("Validation Error:", str(e))
+            print(f"Validation Error for user {user_id}:", str(e))
             messages.error(request, str(e))
+            return render(request, 'components/hr/hr_user_detail.html', {
+                'user_detail': user_detail,
+                'blood_group_choices': UserDetails._meta.get_field('blood_group').choices,
+                'gender_choices': UserDetails._meta.get_field('gender').choices,
+            })
         except Exception as e:
-            # Catch general errors and display the message
-            print("Error updating user details:", str(e))
+            print(f"Unexpected error for user {user_id}:", str(e))
             messages.error(request, f'Error updating user details: {str(e)}')
+            return render(request, 'components/hr/hr_user_detail.html', {
+                'user_detail': user_detail,
+                'blood_group_choices': UserDetails._meta.get_field('blood_group').choices,
+                'gender_choices': UserDetails._meta.get_field('gender').choices,
+            })
 
     return render(request, 'components/hr/hr_user_detail.html', {
         'user_detail': user_detail,
@@ -328,10 +369,78 @@ def hr_user_detail(request, user_id):
         'gender_choices': UserDetails._meta.get_field('gender').choices,
     })
 
-# Manager Views
+
+# @login_required
+# @user_passes_test(is_hr)
+# def hr_user_detail(request, user_id):
+#     user = get_object_or_404(User, id=user_id)
+#     user_detail, created = UserDetails.objects.get_or_create(user=user)
+
+#     if request.method == 'POST':
+#         try:
+#             # Print the form data for debugging
+#             print("POST data received:", request.POST)
+
+#             # Get form data without default values
+#             user_detail.dob = request.POST.get('dob') or None
+#             user_detail.blood_group = request.POST.get('blood_group') or None
+#             user_detail.hire_date = request.POST.get('hire_date') or None
+#             user_detail.gender = request.POST.get('gender') or None
+#             user_detail.panno = request.POST.get('panno') or None
+#             user_detail.job_description = request.POST.get('job_description') or None
+#             user_detail.employment_status = request.POST.get('employment_status') or None
+#             user_detail.emergency_contact_address = request.POST.get('emergency_contact_address') or None
+#             user_detail.emergency_contact_primary = request.POST.get('emergency_contact_primary') or None
+#             user_detail.emergency_contact_name = request.POST.get('emergency_contact_name') or None
+#             user_detail.start_date = request.POST.get('start_date') or None
+#             user_detail.work_location = request.POST.get('work_location') or None
+#             user_detail.contact_number_primary = request.POST.get('contact_number_primary') or None
+#             user_detail.personal_email = request.POST.get('personal_email') or None
+#             user_detail.aadharno = request.POST.get('aadharno') or None
+
+#             # Print the updated user_detail object for debugging
+#             # Print the updated user_detail object for debugging
+#             print("User Detail before save:", user_detail)
+
+#             # Validate contact number and Aadhar number only if they are provided
+#             if user_detail.contact_number_primary and len(user_detail.contact_number_primary) != 10:
+#                 raise ValueError('Primary contact number must be 10 digits.')
+            
+#             # Remove spaces from Aadhar number before validation
+#             if user_detail.aadharno:
+#                 aadhar_cleaned = user_detail.aadharno.replace(' ', '')
+#                 if len(aadhar_cleaned) != 12:
+#                     raise ValueError('Aadhar number must be 12 digits.')
+                
+
+#             print("User Detail before save:", user_detail)
+#             print("Updated fields:", user_detail.__dict__)
+#             user_detail.save()
+#             print("User Detail after save:", user_detail)
+
+
+        
+#             messages.success(request, 'User details updated successfully.')
+#             return redirect('aps_hr:hr_dashboard')
+
+#         except ValueError as e:
+#             # Catch validation errors and display the message
+#             print("Validation Error:", str(e))
+#             messages.error(request, str(e))
+#         except Exception as e:
+#             # Catch general errors and display the message
+#             print("Error updating user details:", str(e))
+#             messages.error(request, f'Error updating user details: {str(e)}')
+
+#     return render(request, 'components/hr/hr_user_detail.html', {
+#         'user_detail': user_detail,
+#         'blood_group_choices': UserDetails._meta.get_field('blood_group').choices,
+#         'gender_choices': UserDetails._meta.get_field('gender').choices,
+#     })
+
 @login_required
 @user_passes_test(is_manager)
-def manager_dashboard(request):
+def manager_employee_profile(request):
     """Manager Dashboard to view team members"""
     manager_group = request.user.groups.first()
     team_members = UserDetails.objects.filter(group=manager_group).exclude(user=request.user)
@@ -339,7 +448,7 @@ def manager_dashboard(request):
     return render(request, 'components/manager/manager_dashboard.html', {
         'team_members': team_members,
         'role': 'Manager',
-        'user_detail': request.user.userdetails,  # Ensure this is available
+        'user_detail': request.user.userdetails,
     })
 
 @login_required
@@ -348,12 +457,14 @@ def manager_user_detail(request, user_id):
     """Manager view to see (but not edit) user details"""
     user_detail = get_object_or_404(UserDetails, id=user_id)
     
-    return render(request, 'users/manager_user_detail.html', {
+    return render(request, 'components/manager/manager_user_detail.html', {
         'user_detail': user_detail,
         'role': 'Manager'
     })
 
 # Employee Views
+# aps/views.py
+
 @login_required
 @user_passes_test(is_employee)
 def employee_profile(request):
@@ -364,11 +475,19 @@ def employee_profile(request):
         messages.error(request, 'Profile not found.')
         return redirect('home')
     
-    return render(request, 'users/employee_profile.html', {
+    return render(request, 'components/employee/employee_profile.html', {
         'user_detail': user_detail,
         'role': 'Employee'
     })
 
+@login_required
+def user_profile(request, user_id):
+    """View to display user profile accessible to all logged-in users"""
+    user_detail = get_object_or_404(UserDetails, user__id=user_id)
+    
+    return render(request, 'basic/user_profile.html', {
+        'user_detail': user_detail,
+    })
 
 ''' --------------------------------------------------------- ADMIN AREA --------------------------------------------------------- '''
 # Helper function to check if the user belongs to the Admin group

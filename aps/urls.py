@@ -44,7 +44,7 @@ employee_patterns = [
     # Leave-related URLs for Employee
     path('leave/', views.leave_view, name='leave_view'),  # Employee leave dashboard
    
-    path('employee/profile/', views.employee_profile, name='employee_profile'),
+    path('profile/', views.employee_profile, name='employee_profile'),
 ]
 
 # HR specific URLs under 'portal/hr/'
@@ -68,8 +68,8 @@ manager_patterns = [
     path('projects/update/<int:project_id>/', views.manager_project_view, {'action': 'update'}, name='project_update'),  # Update project
     path('projects/detail/<int:project_id>/', views.manager_project_view, {'action': 'detail'}, name='project_detail'),  # View project details
     
-    path('manager/dashboard/', views.manager_dashboard, name='manager_dashboard'),
-    path('manager/user/<int:user_id>/', views.manager_user_detail, name='manager_user_detail'),
+    path('employee/', views.manager_employee_profile, name='manager_employee_profile'),
+    path('user/<int:user_id>/', views.manager_user_detail, name='manager_user_detail'),
 
 
 
@@ -88,6 +88,9 @@ urlpatterns = [
     path('login/', views.login_view, name='login'),  # Login page
     path('logout/', views.logout_view, name='logout'),  # Logout page
     path('set_password/<str:username>/', views.set_password_view, name='set_password'),  # Set password for a specific user
+
+    path('profile/<int:user_id>/', views.user_profile, name='user_profile'),
+
     
     # Chat-related views
     path('chats/', views.chat_view, name='chat_view'),  # Chat view for users
