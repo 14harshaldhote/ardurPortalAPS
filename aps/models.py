@@ -8,6 +8,32 @@ from django.utils.timezone import now
 
 IST_TIMEZONE = pytz.timezone('Asia/Kolkata')
 
+'''------------------------- CLINET PROFILE --------------------'''
+class ClientProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='client_profile')
+    company_name = models.CharField(max_length=100)
+    contact_info = models.TextField()
+    
+    # Professional Level Details
+    industry_type = models.CharField(max_length=100)  # Industry type the company belongs to
+    company_size = models.CharField(
+        max_length=50, 
+        choices=[('Small', 'Small'), ('Medium', 'Medium'), ('Large', 'Large')],  # Company size categories
+        default='Small'
+    )
+    registration_number = models.CharField(max_length=50, blank=True, null=True)  # Business registration number
+    business_location = models.CharField(max_length=255, blank=True, null=True)  # Location of the business
+    website_url = models.URLField(blank=True, null=True)  # Company website URL
+    year_established = models.IntegerField(blank=True, null=True)  # Year the company was established
+    annual_revenue = models.DecimalField(
+        max_digits=15, decimal_places=2, blank=True, null=True
+    )  # Annual revenue of the company (optional field)
+
+    def __str__(self):
+        return self.company_name
+'''------------------------- USERSESSION --------------------'''
+
+
 class UserSession(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     session_key = models.CharField(max_length=40, unique=True)
@@ -422,24 +448,21 @@ class UserDetails(models.Model):
 
 
 
-''' ------------------------------------------- PROJECT AREA ------------------------------------------- '''
-
-# Project model with embedded assignment information
-
+''' ------------------------------------------- Clinet - PROJECT AREA ------------------------------------------- '''
 
 class Project(models.Model):
-    name = models.CharField(max_length=100)  # Project name
-    description = models.TextField()  # Description of the project
-    deadline = models.DateField()  # Deadline for the project
+    name = models.CharField(max_length=100)
+    description = models.TextField()
+    deadline = models.DateField()
     status = models.CharField(
         max_length=20, 
         choices=[('Completed', 'Completed'), ('In Progress', 'In Progress'), ('Pending', 'Pending')]
-    )  # Status of the project
-    created_at = models.DateTimeField(auto_now_add=True)  # Time when the project was created
-    users = models.ManyToManyField(User, through='ProjectAssignment', related_name='projects')  # Users assigned to the project
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    users = models.ManyToManyField(User, through='ProjectAssignment', related_name='projects_assigned')  # Distinct related_name
+    client = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='projects_as_client', limit_choices_to={'groups__name': 'Client'})  # Distinct related_name
 
     def __str__(self):
-        """Return the project name."""
         return self.name
 
     def is_overdue(self):
@@ -451,24 +474,32 @@ class Project(models.Model):
         """Check if the status is valid."""
         return status in dict(cls._meta.get_field('status').choices)
 
+# Now the ClientParticipation model can reference Project
+class ClientParticipation(models.Model):
+    project = models.ForeignKey('Project', on_delete=models.CASCADE, related_name='client_participation')  # Use string reference for Project
+    client = models.ForeignKey(User, on_delete=models.CASCADE, related_name='client_participations')  # Linking directly to User model
+    feedback = models.TextField(blank=True, null=True)
+    approved = models.BooleanField(default=False)
+    date = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.client.username} - {self.project.name}"
 
 class ProjectAssignment(models.Model):
-    project = models.ForeignKey(Project, on_delete=models.CASCADE)  # The project being assigned
-    user = models.ForeignKey(User, on_delete=models.CASCADE)  # The user being assigned to the project
-    assigned_date = models.DateField(auto_now_add=True)  # Date of assignment
-    hours_worked = models.FloatField(default=0.0)  # Total hours worked by the user on the project
+    project = models.ForeignKey(Project, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    assigned_date = models.DateField(auto_now_add=True)
+    hours_worked = models.FloatField(default=0.0)
     role_in_project = models.CharField(
         max_length=50, 
         choices=[('Manager', 'Manager'), ('Developer', 'Developer'), ('Support', 'Support'), 
                  ('Apprisal', 'Apprisal'), ('Tester', 'Tester')]
-    )  # Role of the user in the project
+    )
 
     def __str__(self):
-        """Return a string representation of the project assignment."""
         return f"{self.user.username} assigned to {self.project.name}"
 
     def get_total_hours(self):
-        """Calculate total hours worked by a user on a project."""
         return self.hours_worked
 
 ''' ------------------------------------------- TRACK AREA ------------------------------------------- '''
