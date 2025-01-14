@@ -19,14 +19,15 @@ admin_patterns = [
     path('reports/system_usage/', views.system_usage_view, name='system_usage'),  # System usage report
     # Leave-related URLs for Admin
     path('leave/requests/', views.view_leave_requests_admin, name='view_leave_requests_admin'),  # Admin view for leave requests
-    # Project management URLs for Admin
-    path('projects/', views.project_view, {'action': 'list'}, name='projects_list'),
-    path('projects/create/', views.project_view, {'action': 'create'}, name='project_create'),
-    path('projects/<int:project_id>/update/', views.project_view, {'action': 'update'}, name='project_update'),
-    path('projects/<int:project_id>/delete/', views.project_view, {'action': 'delete'}, name='project_delete'),
-    path('projects/<int:project_id>/assign/', views.project_view, {'action': 'assign'}, name='project_assign'),
-    path('projects/<int:project_id>/', views.project_view, {'action': 'detail'}, name='project_detail'),
 
+    path('projects_dashboard/', views.project_dashboard, name='project_dashboard'),
+    path('projects/create/', views.project_create, name='project_create'),
+    path('projects/<int:project_id>/update/', views.project_update, name='project_update'),
+    path('projects/<int:project_id>/delete/', views.project_delete, name='project_delete'),
+    path('projects/<int:project_id>/assign_employee/', views.assign_employee, name='assign_employee'),
+    path('projects/<int:project_id>/update_hours/', views.update_hours, name='update_hours'),
+
+ 
     path('attendance/', views.admin_attendance_view, name='attendance'),  # Admin attendance summary
 
     path('support/', views.admin_support, name='admin_support'),

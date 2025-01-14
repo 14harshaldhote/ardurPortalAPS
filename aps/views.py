@@ -3,7 +3,7 @@ from django.contrib.auth.models import User, Group
 from .models import (UserSession, Attendance, SystemError, 
                     Support, FailedLoginAttempt, PasswordChange, 
                     RoleAssignmentAudit, FeatureUsage, SystemUsage, 
-                    Timesheet, Project,ClientParticipation, ProjectAssignment,
+                    Timesheet,
                     Message, Chat,UserDetails)
 from django.db.models import Q
 from datetime import datetime, timedelta, date
@@ -999,12 +999,63 @@ def view_leave_requests_manager(request):
 
 
 ''' ------------------------------------------- PROJECT AREA ------------------------------------------- '''
-
 from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse
 from django.contrib import messages
+from django.utils import timezone
+from django.db.models import Q, Sum
+from django.core.exceptions import ValidationError
+from .models import Project, ProjectAssignment, ClientParticipation, User
+from django.views.decorators.http import require_http_methods
+from django.db import transaction
+from django.urls import reverse  # Import reverse here
+import json
+import logging
 from django.contrib.auth.models import Group
-from .models import Project, User, ProjectAssignment
-from django.contrib.auth.decorators import login_required, user_passes_test
+
+# Set up logging
+logger = logging.getLogger(__name__)
+
+class ProjectError(Exception):
+    """Custom exception for project-related errors"""
+    pass
+
+def parse_request_data(request):
+    """Helper method to parse request data consistently"""
+    try:
+        if request.content_type == 'application/json':
+            return json.loads(request.body)
+        return request.POST
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON parsing error: {str(e)}")
+        raise ProjectError("Invalid JSON data provided")
+
+def validate_project_dates(start_date, deadline):
+    """Validate project dates"""
+    if start_date > deadline:
+        raise ValidationError("Start date cannot be after deadline")
+    if deadline < timezone.now().date():
+        raise ValidationError("Deadline cannot be in the past")
+
+def handle_assignment_changes(project, assignment, action='assign', role='Employee'):
+    """Helper method to handle employee assignment changes"""
+    try:
+        if action == 'assign':
+            if assignment:
+                # Reactivate if previously deactivated
+                assignment.is_active = True
+                assignment.end_date = None
+                assignment.role_in_project = role
+                assignment.save()
+                return False  # Not created, but updated
+            return True  # New assignment created
+        else:  # remove
+            assignment.deactivate()
+            return True
+    except Exception as e:
+        logger.error(f"Assignment change error: {str(e)}")
+        raise ProjectError(f"Error {action}ing employee")
 
 def get_users_from_group(group_name):
     """Fetch users dynamically from a given group."""
@@ -1013,334 +1064,360 @@ def get_users_from_group(group_name):
         return group.user_set.all()
     except Group.DoesNotExist:
         return User.objects.none()
-from .models import Project, ProjectAssignment, ClientParticipation
 
-@login_required
-@user_passes_test(is_admin)
-def project_view(request, action=None, project_id=None):
-    """View to manage projects."""
-    
-    managers = get_users_from_group("Manager")
-    employees = get_users_from_group("Employee")
-    clients = get_users_from_group("Client")  # Fetch clients to manage client participation
-    
-    if action == "list":
-        projects = Project.objects.all()
-        return render(request, 'components/admin/project_view.html', {
-            'projects': projects,
-            'managers': managers,
-            'employees': employees,
-            'clients': clients
-        })
-
-    elif action == "detail" and project_id:
-        project = get_object_or_404(Project, id=project_id)
-        assignments = ProjectAssignment.objects.filter(project=project)
-        client_participation = ClientParticipation.objects.filter(project=project)
+def project_dashboard(request):
+    """Main dashboard view handling all project operations"""
+    try:
+        # Get all active projects with related data
+        projects = Project.objects.prefetch_related(
+            'users', 
+            'clients', 
+            'projectassignment_set__user',
+            'client_participations'  # Corrected this line to match related_name
+        ).all()
         
-        # Get the client names associated with the project
-        clients_list = [client.client.username for client in client_participation]  # Assuming 'username' is the client's name
+        # Get employees from 'Employee' group
+        employees = get_users_from_group('Employee')
+        
+        # Get managers from 'Manager' group
+        managers = get_users_from_group('Manager')
+        
+        # Get clients from 'Client' group
+        clients = get_users_from_group('Client')
         
         context = {
-            'project': project,
-            'assignments': assignments,
-            'clients': clients_list,  # Pass the list of client names to the template
-            'project_id': project_id,
-            'is_overdue': project.is_overdue() if hasattr(project, 'is_overdue') else False,
-        }
-        return render(request, 'components/admin/project_view.html', context)
-    
-    elif action == "create":
-        if request.method == 'POST':
-            try:
-                name = request.POST.get('name')
-                description = request.POST.get('description')
-                due_date = request.POST.get('due_date')
-                manager_id = request.POST.get('manager')
-                client_ids = request.POST.getlist('clients')
-                
-                project = Project.objects.create(
-                    name=name,
-                    description=description,
-                    deadline=due_date,
-                    status='Not Started'
-                )
-
-                # Assign manager if selected
-                if manager_id:
-                    manager = User.objects.get(id=manager_id)
-                    ProjectAssignment.objects.create(
-                        project=project,
-                        user=manager,
-                        role_in_project='Manager'
-                    )
-
-                # Assign employees
-                for employee_id in request.POST.getlist('employees'):
-                    employee = User.objects.get(id=employee_id)
-                    ProjectAssignment.objects.create(
-                        project=project,
-                        user=employee,
-                        role_in_project='Employee'
-                    )
-
-                # Assign clients
-                for client_id in client_ids:
-                    client = User.objects.get(id=client_id)
-                    ClientParticipation.objects.create(
-                        project=project,
-                        client=client,
-                        feedback="",
-                        approved=False
-                    )
-
-                messages.success(request, "Project created successfully!")
-                return redirect('aps_admin:project_detail', project_id=project.id)
-
-            except Exception as e:
-                messages.error(request, f"Error creating project: {str(e)}")
-                return redirect('aps_admin:project_view', action="list")
-
-        return render(request, 'components/admin/project_view.html', {
-            'managers': managers,
+            'projects': projects,
             'employees': employees,
             'clients': clients,
-            'project_id': None
-        })
+            'managers': managers,  # Pass managers separately to the template
+            'project_statuses': dict(Project._meta.get_field('status').choices),
+            'role_choices': dict(ProjectAssignment._meta.get_field('role_in_project').choices),
+        }
+        
+        return render(request, 'components/admin/project_view.html', context)
+    except Exception as e:
+        logger.error(f"Dashboard error: {str(e)}")
+        messages.error(request, "Error loading dashboard")
+        return render(request, 'error.html', {'error': str(e)})
 
-    elif action == "update" and project_id:
+
+@login_required
+@require_http_methods(["POST"])
+def project_create(request):
+    """Handle project creation"""
+    try:
+        # Parse the request data
+        data = parse_request_data(request)
+        
+        # Convert date fields from string to datetime.date
+        start_date_str = data.get('start_date')
+        deadline_str = data.get('deadline')
+        
+        # Ensure the start and deadline dates are in the correct format
+        try:
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            deadline = datetime.strptime(deadline_str, '%Y-%m-%d').date()
+        except ValueError:
+            raise ValidationError("Invalid date format. Expected 'YYYY-MM-DD'.")
+        
+        # Validate the dates
+        validate_project_dates(start_date, deadline)
+        
+        # Create project with transaction
+        with transaction.atomic():
+            project = Project.objects.create(
+                name=data.get('name'),
+                description=data.get('description'),
+                start_date=start_date,
+                deadline=deadline,
+                status='Pending'
+            )
+            
+            # Add clients
+            client_ids = data.getlist('clients') if hasattr(data, 'getlist') else data.get('clients', [])
+            project.clients.set(client_ids)
+            
+            # Create client participation records
+            for client_id in client_ids:
+                ClientParticipation.objects.create(
+                    project=project,
+                    client_id=client_id
+                )
+            
+            # Add manager
+            manager_id = data.get('manager')
+            if manager_id:
+                ProjectAssignment.objects.create(
+                    project=project,
+                    user_id=manager_id,
+                    role_in_project='Manager'
+                )
+            
+            # Add team members
+            employee_ids = data.getlist('employees') if hasattr(data, 'getlist') else data.get('employees', [])
+            for emp_id in employee_ids:
+                ProjectAssignment.objects.create(
+                    project=project,
+                    user_id=emp_id,
+                    role_in_project='Employee'
+                )
+        
+        # Log success and return response
+        logger.info(f"Project created successfully: {project.name}")
+        return redirect(reverse('aps_admin:project_dashboard'))
+        
+    except ValidationError as e:
+        # Log validation errors and return response
+        logger.warning(f"Validation error in project creation: {str(e)}")
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+    except Exception as e:
+        # Log internal server error and return response
+        logger.error(f"Error creating project: {str(e)}")
+        return JsonResponse({'status': 'error', 'message': 'Internal server error'}, status=500)
+
+def update_project_status(project):
+    """Automatically update project status based on dates"""
+    today = datetime.now().date()
+
+    # If the project is completed (Deadline passed)
+    if project.deadline and today > project.deadline and project.status != 'completed':
+        project.status = 'completed'
+    
+    # If the project is in progress (Start date has passed but deadline hasn't passed)
+    elif project.start_date and today >= project.start_date and (not project.deadline or today <= project.deadline):
+        project.status = 'in_progress'
+    
+    # If the project is on hold or any other condition you may define
+    elif project.status != 'on_hold':  # Example condition
+        project.status = 'on_hold'
+    
+    project.save()
+
+@require_http_methods(["POST"])
+def project_update(request, project_id):
+    """Handle project updates"""
+    try:
+        project = get_object_or_404(Project, id=project_id)
+        data = parse_request_data(request)
+        
+        # Validate status from the form (if provided)
+        new_status = data.get('status')
+        if new_status and not Project.is_valid_status(new_status):
+            raise ValidationError("Invalid project status")
+        
+        with transaction.atomic():
+            # Update basic info
+            project.name = data.get('name', project.name)
+            project.description = data.get('description', project.description)  # Update description
+            
+            # Validate and update dates if provided
+            if 'start_date' in data or 'deadline' in data:
+                start_date = data.get('start_date', project.start_date)
+                deadline = data.get('deadline', project.deadline)
+                validate_project_dates(start_date, deadline)
+                project.start_date = start_date
+                project.deadline = deadline
+            
+            # Update project status dynamically
+            update_project_status(project)
+            
+            project.save()
+        
+        return JsonResponse({
+            'status': 'success',
+            'message': 'Project updated successfully',
+            'project': {
+                'id': project.id,
+                'name': project.name,
+                'status': project.status,
+                'description': project.description  # Include the updated description in the response
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+    
+@login_required
+@require_http_methods(["POST"])
+def project_delete(request, project_id):
+    """Handle project deletion"""
+    try:
         project = get_object_or_404(Project, id=project_id)
         
-        if request.method == 'POST':
-            try:
-                project.name = request.POST.get('name', project.name)
-                project.description = request.POST.get('description', project.description)
-                project.status = request.POST.get('status', project.status)
-                project.deadline = request.POST.get('deadline', project.deadline)
-                project.save()
-
-                # Reassign project members (manager, employees, clients)
-                ProjectAssignment.objects.filter(project=project).delete()
-                for employee_id in request.POST.getlist('employees'):
-                    employee = User.objects.get(id=employee_id)
-                    ProjectAssignment.objects.create(
-                        project=project,
-                        user=employee,
-                        role_in_project='Employee'
-                    )
-
-                ClientParticipation.objects.filter(project=project).delete()
-                for client_id in request.POST.getlist('clients'):
-                    client = User.objects.get(id=client_id)
-                    ClientParticipation.objects.create(
-                        project=project,
-                        client=client,
-                        feedback="",
-                        approved=False
-                    )
-
-                messages.success(request, "Project updated successfully!")
-                return redirect('aps_admin:project_detail', project_id=project.id)
-
-            except Exception as e:
-                messages.error(request, f"Error updating project: {str(e)}")
-                return redirect('aps_admin:project_view', action="detail", project_id=project.id)
-
-        return render(request, 'components/admin/project_view.html', {
-            'project': project,
-            'managers': managers,
-            'employees': employees,
-            'clients': clients,
-            'project_id': project_id
-        })
-
-    elif action == "delete" and project_id:
+        with transaction.atomic():
+            # Soft delete all assignments
+            ProjectAssignment.objects.filter(project=project).update(
+                is_active=False,
+                end_date=timezone.now().date()
+            )
+            
+            # Soft delete all client participations
+            ClientParticipation.objects.filter(project=project).update(is_active=False)
+            
+            # Delete the project
+            project.delete()
+        
+        logger.info(f"Project deleted successfully: {project.name}")
+        return redirect(reverse('aps_admin:project_dashboard'))
+        
+    except Exception as e:
+        logger.error(f"Error deleting project: {str(e)}")
+        return JsonResponse({'status': 'error', 'message': 'Internal server error'}, status=500)
+    
+@login_required
+@require_http_methods(["POST"])
+def assign_employee(request, project_id):
+    """Handle employee assignment to project"""
+    try:
         project = get_object_or_404(Project, id=project_id)
-        if request.method == 'POST':
-            try:
-                project.delete()
-                messages.success(request, "Project deleted successfully!")
-            except Exception as e:
-                messages.error(request, f"Error deleting project: {str(e)}")
-            return redirect('aps_admin:project_view', action="list")
-
-        return render(request, 'components/admin/project_view.html', {
-            'project': project,
-            'project_id': project_id
+        data = parse_request_data(request)
+        
+        user_id = data.get('user_id')
+        role = data.get('role', 'Employee')
+        
+        if not user_id:
+            raise ValidationError("User ID is required")
+        
+        assignment = ProjectAssignment.objects.filter(
+            project=project,
+            user_id=user_id
+        ).first()
+        
+        created = handle_assignment_changes(project, assignment, 'assign', role)
+        
+        logger.info(f"Employee {'assigned' if created else 'updated'} successfully: {user_id} to {project.name}")
+        return JsonResponse({
+            'status': 'success',
+            'message': f"Employee {'assigned' if created else 'updated'} successfully"
         })
+        
+    except ValidationError as e:
+        logger.warning(f"Validation error in employee assignment: {str(e)}")
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+    except Exception as e:
+        logger.error(f"Error assigning employee: {str(e)}")
+        return JsonResponse({'status': 'error', 'message': 'Internal server error'}, status=500)
 
-    elif action == "assign" and project_id:
+@login_required
+@require_http_methods(["POST"])
+def update_hours(request, project_id):
+    """Handle updating worked hours for an assignment"""
+    try:
         project = get_object_or_404(Project, id=project_id)
-
-        if request.method == 'POST':
-            try:
-                # Assign employees to the project
-                employee_ids = request.POST.getlist('employees')
-                for employee_id in employee_ids:
-                    employee = User.objects.get(id=employee_id)
-                    ProjectAssignment.objects.create(
-                        project=project,
-                        user=employee,
-                        role_in_project='Employee'
-                    )
-
-                # Assign clients to the project
-                client_ids = request.POST.getlist('clients')
-                for client_id in client_ids:
-                    client = User.objects.get(id=client_id)
-                    ClientParticipation.objects.create(
-                        project=project,
-                        client=client,
-                        feedback="",
-                        approved=False
-                    )
-
-                messages.success(request, "Users assigned successfully!")
-                return redirect('aps_admin:project_detail', project_id=project.id)
-
-            except Exception as e:
-                messages.error(request, f"Error assigning users: {str(e)}")
-                return redirect('aps_admin:project_detail', project_id=project.id)
-
-        return render(request, 'components/admin/project_assign.html', {
-            'project': project,
-            'employees': employees,
-            'clients': clients,
-            'project_id': project_id
+        data = parse_request_data(request)
+        
+        user_id = data.get('user_id')
+        hours = data.get('hours')
+        
+        if not user_id or hours is None:
+            raise ValidationError("User ID and hours are required")
+        
+        try:
+            hours = float(hours)
+            if hours < 0:
+                raise ValidationError("Hours cannot be negative")
+        except ValueError:
+            raise ValidationError("Invalid hours value")
+        
+        assignment = get_object_or_404(
+            ProjectAssignment,
+            project=project,
+            user_id=user_id,
+            is_active=True
+        )
+        
+        assignment.update_hours(hours)
+        
+        logger.info(f"Hours updated successfully: {hours} hours for {user_id} in {project.name}")
+        return JsonResponse({
+            'status': 'success',
+            'message': 'Hours updated successfully',
+            'total_hours': assignment.get_total_hours()
         })
-
-    return redirect('aps_admin:project_list', action="list")
+        
+    except ValidationError as e:
+        logger.warning(f"Validation error in hours update: {str(e)}")
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+    except Exception as e:
+        logger.error(f"Error updating hours: {str(e)}")
+        return JsonResponse({'status': 'error', 'message': 'Internal server error'}, status=500)
 
 # @login_required
 # @user_passes_test(is_admin)
 # def project_view(request, action=None, project_id=None):
 #     """View to manage projects."""
-    
+
 #     managers = get_users_from_group("Manager")
 #     employees = get_users_from_group("Employee")
-    
+#     clients = get_users_from_group("Client")
+
 #     if action == "list":
 #         projects = Project.objects.all()
 #         return render(request, 'components/admin/project_view.html', {
 #             'projects': projects,
 #             'managers': managers,
-#             'employees': employees
+#             'employees': employees,
+#             'clients': clients,
 #         })
 
 #     elif action == "detail" and project_id:
 #         project = get_object_or_404(Project, id=project_id)
 #         assignments = ProjectAssignment.objects.filter(project=project)
-#         context = {
+#         client_participation = ClientParticipation.objects.filter(project=project)
+#         clients_list = [client.client.username for client in client_participation]
+
+#         return render(request, 'components/admin/project_view.html', {
 #             'project': project,
 #             'assignments': assignments,
-#             'project_id': project_id,  # Add this to ensure template knows we're in detail view
+#             'clients': clients_list,
+#             'project_id': project_id,
 #             'is_overdue': project.is_overdue() if hasattr(project, 'is_overdue') else False,
+#         })
 
-#         }
-#         return render(request, 'components/admin/project_view.html', context)
-    
 #     elif action == "create":
 #         if request.method == 'POST':
 #             try:
-#                 # Extract form data
-#                 name = request.POST.get('name')
-#                 description = request.POST.get('description')
-#                 due_date = request.POST.get('due_date')
-#                 manager_id = request.POST.get('manager')
-                
-#                 # Create the project first
-#                 project = Project.objects.create(
-#                     name=name,
-#                     description=description,
-#                     deadline=due_date,
-#                     status='Not Started'  # Set a default status
-#                 )
-                
-#                 # Assign manager if selected
-#                 if manager_id:
-#                     try:
-#                         manager = User.objects.get(id=manager_id)
-#                         ProjectAssignment.objects.create(
-#                             project=project,
-#                             user=manager,
-#                             role_in_project='Manager'
-#                         )
-#                     except User.DoesNotExist:
-#                         messages.warning(request, "Selected manager not found.")
-
-#                 # Handle employee assignments
-#                 employees = request.POST.getlist('employees')  # Changed from 'employee' to 'employees'
-#                 for employee_id in employees:
-#                     try:
-#                         employee = User.objects.get(id=employee_id)
-#                         ProjectAssignment.objects.create(
-#                             project=project,
-#                             user=employee,
-#                             role_in_project='Employee'
-#                         )
-#                     except User.DoesNotExist:
-#                         messages.warning(request, f"Employee with ID {employee_id} not found.")
-
+#                 project = create_project(request)
 #                 messages.success(request, "Project created successfully!")
-#                 return redirect('aps_admin:project_detail', project_id=project.id)  # Correct redirect for project detail page
-                
+#                 return redirect('aps_admin:project_detail', project_id=project.id)
 #             except Exception as e:
 #                 messages.error(request, f"Error creating project: {str(e)}")
 #                 return redirect('aps_admin:project_view', action="list")
 
-#         # GET request - show the creation form
 #         return render(request, 'components/admin/project_view.html', {
 #             'managers': managers,
 #             'employees': employees,
-#             'project_id': None  # Ensure we show the creation form
+#             'clients': clients,
+#             'project_id': None,
 #         })
 
 #     elif action == "update" and project_id:
 #         project = get_object_or_404(Project, id=project_id)
-        
+#         status_choices = Project._meta.get_field('status').choices
+
+
 #         if request.method == 'POST':
 #             try:
-#                 project.name = request.POST.get('name', project.name)
-#                 project.description = request.POST.get('description', project.description)
-#                 project.status = request.POST.get('status', project.status)
-#                 project.deadline = request.POST.get('deadline', project.deadline)
-#                 project.save()
-
-#                 # Update assignments
-#                 ProjectAssignment.objects.filter(project=project).delete()
-                
-#                 # Recreate manager assignment
-#                 manager_id = request.POST.get('manager')
-#                 if manager_id:
-#                     manager = User.objects.get(id=manager_id)
-#                     ProjectAssignment.objects.create(
-#                         project=project,
-#                         user=manager,
-#                         role_in_project='Manager'
-#                     )
-
-#                 # Recreate employee assignments
-#                 employee_ids = request.POST.getlist('employees')
-#                 for employee_id in employee_ids:
-#                     employee = User.objects.get(id=employee_id)
-#                     ProjectAssignment.objects.create(
-#                         project=project,
-#                         user=employee,
-#                         role_in_project='Employee'
-#                     )
-
+#                 update_project(request, project)
 #                 messages.success(request, "Project updated successfully!")
 #                 return redirect('aps_admin:project_detail', project_id=project.id)
-            
 #             except Exception as e:
 #                 messages.error(request, f"Error updating project: {str(e)}")
 #                 return redirect('aps_admin:project_view', action="detail", project_id=project.id)
 
+#         assignments = ProjectAssignment.objects.filter(project=project)
+#         current_managers = [assignment.user.id for assignment in assignments.filter(role_in_project='Manager')]
+
 #         return render(request, 'components/admin/project_view.html', {
 #             'project': project,
 #             'managers': managers,
+#             'current_managers': current_managers,
 #             'employees': employees,
-#             'project_id': project_id
+#             'clients': clients,
+#             'project_id': project_id,
+#             'action': 'update',
+#             'status_choices': status_choices,  # Pass status choices
+
 #         })
 
 #     elif action == "delete" and project_id:
@@ -1349,16 +1426,119 @@ def project_view(request, action=None, project_id=None):
 #             try:
 #                 project.delete()
 #                 messages.success(request, "Project deleted successfully!")
+#                 print("Project deletion successful")  # Debugging line
 #             except Exception as e:
 #                 messages.error(request, f"Error deleting project: {str(e)}")
-#             return redirect('aps_admin:project_view', action="list")
-        
+#             return redirect('aps_admin:projects_list')
 #         return render(request, 'components/admin/project_view.html', {
 #             'project': project,
-#             'project_id': project_id
+#             'project_id': project_id,
 #         })
 
+#     elif action == "assign" and project_id:
+#         project = get_object_or_404(Project, id=project_id)
+#         role_choices = ProjectAssignment._meta.get_field('role_in_project').choices
+
+
+#         if request.method == 'POST':
+#             try:
+#                 assign_users_to_project(request, project)
+#                 messages.success(request, "Users assigned successfully!")
+#                 return redirect('aps_admin:project_detail', project_id=project.id)
+#             except Exception as e:
+#                 messages.error(request, f"Error assigning users: {str(e)}")
+#                 return redirect('aps_admin:project_detail', project_id=project.id)
+
+#         manager = project.projectassignment_set.filter(role_in_project='Manager').first()
+
+#         return render(request, 'components/admin/project_view.html', {
+#             'project': project,
+#             'employees': employees,
+#             'clients': clients,
+#             'assignments': ProjectAssignment.objects.filter(project=project),
+#             'manager': manager,
+#             'project_id': project_id,
+#             'action': 'assign',  # Add this line to ensure 'assign' action is passed
+#             'role_choices': role_choices,  # Pass role choices
+
+#         })
+
+
 #     return redirect('aps_admin:project_list', action="list")
+
+
+def create_project(request):
+    """Helper function to create a project."""
+    name = request.POST.get('name')
+    description = request.POST.get('description')
+    start_date = request.POST.get('start_date')
+    due_date = request.POST.get('due_date')
+    client_ids = request.POST.getlist('clients')  # Ensure client_ids are being captured here
+    print("Client IDs:", client_ids)  # Add this line for debugging
+    
+    project = Project.objects.create(
+        name=name,
+        description=description,
+        start_date=start_date,
+        deadline=due_date,
+        status='Not Started'
+    )
+    
+    assign_users_to_project(request, project, client_ids)  # Pass client_ids to the assign function
+    return project
+
+
+def update_project(request, project):
+    """Helper function to update a project."""
+    project.name = request.POST.get('name', project.name)
+    project.description = request.POST.get('description', project.description)
+    project.status = request.POST.get('status', project.status)
+    project.start_date = request.POST.get('start_date', project.start_date)
+    project.deadline = request.POST.get('deadline', project.deadline)
+    project.save()
+
+    # Reassign clients based on selected client_ids (Handle soft deletes if necessary)
+    client_ids = request.POST.getlist('clients')
+    # Clear current clients and reassign based on new client_ids
+    project.clients.clear()  
+    for client_id in client_ids:
+        client = User.objects.get(id=client_id)
+        project.clients.add(client)
+
+    return project
+
+
+def assign_users_to_project(request, project, client_ids=None):
+    """Helper function to assign users to a project."""
+    # Assign manager
+    manager_id = request.POST.get('manager')
+    if manager_id:
+        manager = User.objects.get(id=manager_id)
+        ProjectAssignment.objects.update_or_create(
+            project=project,
+            user=manager,
+            defaults={'role_in_project': 'Manager', 'hours_worked': 0.0}
+        )
+    
+    # Assign employees
+    employee_ids = request.POST.getlist('employees')
+    for employee_id in employee_ids:
+        employee = User.objects.get(id=employee_id)
+        ProjectAssignment.objects.get_or_create(
+            project=project,
+            user=employee,
+            defaults={'role_in_project': 'Employee', 'hours_worked': 0.0}
+        )
+    
+    # Assign clients if client_ids are passed
+    if client_ids:
+        for client_id in client_ids:  # Iterate through the passed client_ids
+            client = User.objects.get(id=client_id)
+            ClientParticipation.objects.get_or_create(
+                project=project,
+                client=client,
+                defaults={'feedback': '', 'approved': False}
+            )
 
 @login_required
 @user_passes_test(is_manager)
@@ -1721,7 +1901,6 @@ def hr_attendance_view(request):
         'lop_count': lop_count,  # Include Loss of Pay count in the template context
     })
 
-
 def export_attendance_csv(queryset):
     response = HttpResponse(content_type='text/csv')
     response['Content-Disposition'] = 'attachment; filename="attendance.csv"'
@@ -1741,7 +1920,6 @@ def export_attendance_csv(queryset):
             record['working_hours'],
         ])
     return response
-
 
 def export_attendance_excel(queryset):
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')

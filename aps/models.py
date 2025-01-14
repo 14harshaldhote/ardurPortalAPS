@@ -447,43 +447,48 @@ class UserDetails(models.Model):
         return f"Details for {self.user.username}" 
 
 
-
 ''' ------------------------------------------- Clinet - PROJECT AREA ------------------------------------------- '''
-
 class Project(models.Model):
     name = models.CharField(max_length=100)
     description = models.TextField()
+    start_date = models.DateField(default=timezone.now)
     deadline = models.DateField()
     status = models.CharField(
         max_length=20, 
         choices=[('Completed', 'Completed'), ('In Progress', 'In Progress'), ('Pending', 'Pending')]
     )
     created_at = models.DateTimeField(auto_now_add=True)
-    users = models.ManyToManyField(User, through='ProjectAssignment', related_name='projects_assigned')  # Distinct related_name
-    client = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='projects_as_client', limit_choices_to={'groups__name': 'Client'})  # Distinct related_name
+    users = models.ManyToManyField(User, through='ProjectAssignment', related_name='projects_assigned')
+    clients = models.ManyToManyField(User, related_name='projects_as_client', limit_choices_to={'groups__name': 'Client'})
 
     def __str__(self):
         return self.name
 
     def is_overdue(self):
-        """Check if the project is overdue based on the deadline."""
         return self.deadline < timezone.now().date() and self.status != 'Completed'
 
     @classmethod
     def is_valid_status(cls, status):
-        """Check if the status is valid."""
         return status in dict(cls._meta.get_field('status').choices)
 
-# Now the ClientParticipation model can reference Project
+
 class ClientParticipation(models.Model):
-    project = models.ForeignKey('Project', on_delete=models.CASCADE, related_name='client_participation')  # Use string reference for Project
-    client = models.ForeignKey(User, on_delete=models.CASCADE, related_name='client_participations')  # Linking directly to User model
+    project = models.ForeignKey('Project', on_delete=models.CASCADE, related_name='client_participations')  # updated to plural
+    client = models.ForeignKey(User, on_delete=models.CASCADE, related_name='client_participations')
     feedback = models.TextField(blank=True, null=True)
     approved = models.BooleanField(default=False)
     date = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)  # Added for soft delete
 
     def __str__(self):
         return f"{self.client.username} - {self.project.name}"
+
+    def deactivate(self):
+        """Soft delete a client participation by setting is_active to False"""
+        self.is_active = False
+        self.save()
+
+
 
 class ProjectAssignment(models.Model):
     project = models.ForeignKey(Project, on_delete=models.CASCADE)
@@ -492,15 +497,30 @@ class ProjectAssignment(models.Model):
     hours_worked = models.FloatField(default=0.0)
     role_in_project = models.CharField(
         max_length=50, 
-        choices=[('Manager', 'Manager'), ('Developer', 'Developer'), ('Support', 'Support'), 
-                 ('Apprisal', 'Apprisal'), ('Tester', 'Tester')]
+        choices=[('Manager', 'Manager'), ('Employee', 'Employee'), ('Support', 'Support'),
+                 ('Appraisal', 'Appraisal'), ('QC', 'QC')],
+        default='Employee'
     )
+    end_date = models.DateField(null=True, blank=True)  # Soft delete field
+    is_active = models.BooleanField(default=True)  # Soft delete indicator
 
     def __str__(self):
         return f"{self.user.username} assigned to {self.project.name}"
 
     def get_total_hours(self):
+        # Calculate total hours worked, considering the current hours worked and any additional logic.
         return self.hours_worked
+
+    def deactivate(self):
+        """Soft delete an assignment by setting is_active to False and updating the end_date"""
+        self.is_active = False
+        self.end_date = timezone.now().date()
+        self.save()
+
+    def update_hours(self, hours):
+        """Update hours worked for a project assignment."""
+        self.hours_worked += hours
+        self.save()
 
 ''' ------------------------------------------- TRACK AREA ------------------------------------------- '''
 
