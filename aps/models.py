@@ -455,7 +455,7 @@ class Project(models.Model):
     deadline = models.DateField()
     status = models.CharField(
         max_length=20, 
-        choices=[('Completed', 'Completed'), ('In Progress', 'In Progress'), ('Pending', 'Pending')]
+        choices=[('Completed', 'Completed'), ('In Progress', 'In Progress'), ('Pending', 'Pending'),('On Hold', 'On Hold')]
     )
     created_at = models.DateTimeField(auto_now_add=True)
     users = models.ManyToManyField(User, through='ProjectAssignment', related_name='projects_assigned')

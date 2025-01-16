@@ -22,7 +22,7 @@ admin_patterns = [
 
     path('projects_dashboard/', views.project_dashboard, name='project_dashboard'),
     path('projects/create/', views.project_create, name='project_create'),
-    path('projects/<int:project_id>/update/', views.project_update, name='project_update'),
+    path('projects/update/<int:project_id>/', views.project_update, name='project_update'),
     path('projects/<int:project_id>/delete/', views.project_delete, name='project_delete'),
     path('projects/<int:project_id>/assign_employee/', views.assign_employee, name='assign_employee'),
     path('projects/<int:project_id>/update_hours/', views.update_hours, name='update_hours'),

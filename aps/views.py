@@ -15,6 +15,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from .helpers import is_user_in_group
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 import json
+from django.utils.dateparse import parse_date
 
 
 ''' ------------------ ROLE-BASED CHECKS ------------------ '''
@@ -839,7 +840,7 @@ def leave_view(request):
         end_date = request.POST.get('end_date')
         reason = request.POST.get('reason')
 
-        # Print form data to check if it’s correctly received
+        # Print form data to check if it's correctly received
         print(f"Request Leave - Leave Type: {leave_type}, Start Date: {start_date}, End Date: {end_date}, Reason: {reason}")
 
         try:
@@ -1009,10 +1010,11 @@ from django.core.exceptions import ValidationError
 from .models import Project, ProjectAssignment, ClientParticipation, User
 from django.views.decorators.http import require_http_methods
 from django.db import transaction
-from django.urls import reverse  # Import reverse here
+from django.urls import reverse
 import json
 import logging
 from django.contrib.auth.models import Group
+from datetime import datetime
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -1065,6 +1067,10 @@ def get_users_from_group(group_name):
     except Group.DoesNotExist:
         return User.objects.none()
 
+
+# Assuming logger is set up
+logger = logging.getLogger(__name__)
+
 def project_dashboard(request):
     """Main dashboard view handling all project operations"""
     try:
@@ -1072,19 +1078,40 @@ def project_dashboard(request):
         projects = Project.objects.prefetch_related(
             'users', 
             'clients', 
-            'projectassignment_set__user',
+            'projectassignment_set__user',  # Prefetch assignments
             'client_participations'  # Corrected this line to match related_name
         ).all()
-        
+
+        today = date.today()
+
+        # Loop through each project to calculate the deadline warning based on percentage
+        for project in projects:
+            # Calculate the number of days between the start date and deadline
+            project_duration = (project.deadline - project.start_date).days
+            remaining_days = (project.deadline - today).days
+            
+            # Calculate the percentage of time remaining
+            if project_duration > 0:  # Avoid division by zero
+                remaining_percentage = (remaining_days / project_duration) * 100
+            else:
+                remaining_percentage = 0
+
+            # Set the warning threshold dynamically (e.g., trigger when 10% of the project duration remains)
+            if remaining_percentage <= 10 and remaining_days >= 0:
+                project.is_deadline_close = True
+            else:
+                project.is_deadline_close = False
+
         # Get employees from 'Employee' group
         employees = get_users_from_group('Employee')
-        
+
         # Get managers from 'Manager' group
         managers = get_users_from_group('Manager')
-        
+
         # Get clients from 'Client' group
         clients = get_users_from_group('Client')
-        
+
+        # Prepare context
         context = {
             'projects': projects,
             'employees': employees,
@@ -1093,8 +1120,9 @@ def project_dashboard(request):
             'project_statuses': dict(Project._meta.get_field('status').choices),
             'role_choices': dict(ProjectAssignment._meta.get_field('role_in_project').choices),
         }
-        
+
         return render(request, 'components/admin/project_view.html', context)
+
     except Exception as e:
         logger.error(f"Dashboard error: {str(e)}")
         messages.error(request, "Error loading dashboard")
@@ -1106,24 +1134,20 @@ def project_dashboard(request):
 def project_create(request):
     """Handle project creation"""
     try:
-        # Parse the request data
-        data = parse_request_data(request)
-        
-        # Convert date fields from string to datetime.date
+        data = request.POST
         start_date_str = data.get('start_date')
         deadline_str = data.get('deadline')
         
-        # Ensure the start and deadline dates are in the correct format
         try:
-            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
-            deadline = datetime.strptime(deadline_str, '%Y-%m-%d').date()
+            start_date = parse_date(start_date_str)
+            deadline = parse_date(deadline_str)
+            if not start_date or not deadline:
+                raise ValidationError("Invalid date format. Expected 'YYYY-MM-DD'.")
         except ValueError:
             raise ValidationError("Invalid date format. Expected 'YYYY-MM-DD'.")
-        
-        # Validate the dates
+
         validate_project_dates(start_date, deadline)
         
-        # Create project with transaction
         with transaction.atomic():
             project = Project.objects.create(
                 name=data.get('name'),
@@ -1133,170 +1157,194 @@ def project_create(request):
                 status='Pending'
             )
             
-            # Add clients
-            client_ids = data.getlist('clients') if hasattr(data, 'getlist') else data.get('clients', [])
-            project.clients.set(client_ids)
+            client_ids = data.getlist('clients') if hasattr(data, 'getlist') else []
+            if client_ids:
+                project.clients.set(client_ids)
+                for client_id in client_ids:
+                    ClientParticipation.objects.create(project=project, client_id=client_id)
             
-            # Create client participation records
-            for client_id in client_ids:
-                ClientParticipation.objects.create(
-                    project=project,
-                    client_id=client_id
-                )
-            
-            # Add manager
             manager_id = data.get('manager')
             if manager_id:
-                ProjectAssignment.objects.create(
-                    project=project,
-                    user_id=manager_id,
-                    role_in_project='Manager'
-                )
+                ProjectAssignment.objects.create(project=project, user_id=manager_id, role_in_project='Manager')
             
-            # Add team members
-            employee_ids = data.getlist('employees') if hasattr(data, 'getlist') else data.get('employees', [])
+            employee_ids = data.getlist('employees') if hasattr(data, 'getlist') else []
             for emp_id in employee_ids:
-                ProjectAssignment.objects.create(
-                    project=project,
-                    user_id=emp_id,
-                    role_in_project='Employee'
-                )
-        
-        # Log success and return response
+                ProjectAssignment.objects.create(project=project, user_id=emp_id, role_in_project='Employee')
+
         logger.info(f"Project created successfully: {project.name}")
         return redirect(reverse('aps_admin:project_dashboard'))
         
     except ValidationError as e:
-        # Log validation errors and return response
         logger.warning(f"Validation error in project creation: {str(e)}")
         return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
     except Exception as e:
-        # Log internal server error and return response
         logger.error(f"Error creating project: {str(e)}")
         return JsonResponse({'status': 'error', 'message': 'Internal server error'}, status=500)
-
+    
 def update_project_status(project):
     """Automatically update project status based on dates"""
     today = datetime.now().date()
 
     # If the project is completed (Deadline passed)
-    if project.deadline and today > project.deadline and project.status != 'completed':
-        project.status = 'completed'
+    if project.deadline and today > project.deadline and project.status != 'Completed':
+        project.status = 'Completed'
     
     # If the project is in progress (Start date has passed but deadline hasn't passed)
     elif project.start_date and today >= project.start_date and (not project.deadline or today <= project.deadline):
-        project.status = 'in_progress'
+        project.status = 'In Progress'
     
     # If the project is on hold or any other condition you may define
-    elif project.status != 'on_hold':  # Example condition
-        project.status = 'on_hold'
+    elif project.status != 'On Hold':  # Example condition
+        project.status = 'On Hold'
     
     project.save()
 
+     
+     
+
+@login_required
+@user_passes_test(is_admin)
 @require_http_methods(["POST"])
 def project_update(request, project_id):
     """Handle project updates"""
+    print(f"Updating project with ID: {project_id}")  # Debug line
+
     try:
         project = get_object_or_404(Project, id=project_id)
         data = parse_request_data(request)
         
         # Validate status from the form (if provided)
         new_status = data.get('status')
-        if new_status and not Project.is_valid_status(new_status):
+        if new_status and new_status not in ['Completed', 'In Progress', 'Pending', 'On Hold']:
             raise ValidationError("Invalid project status")
         
+        # Update project status explicitly
+        if new_status:
+            project.status = new_status
+        
+        # Convert deadline to a date object if provided and ensure it's a string
+        # Handle deadline field
+        if 'deadline' in data and data['deadline']:
+            deadline = data.get('deadline')
+            try:
+                # Convert deadline to a date object only if it's not empty
+                if deadline:
+                    deadline = datetime.strptime(deadline, '%Y-%m-%d').date()
+
+                    # Validate that deadline is not in the past and that it is later than start_date
+                    if deadline < datetime.now().date():
+                        raise ValidationError("Deadline cannot be in the past.")
+                    if project.start_date and deadline < project.start_date:
+                        raise ValidationError("Deadline cannot be earlier than the start date.")
+
+                    project.deadline = deadline
+            except ValueError:
+                raise ValidationError("Invalid date format for deadline. Please use YYYY-MM-DD.")
+
+            project.deadline = deadline
+        
         with transaction.atomic():
-            # Update basic info
+            # Update project basic info
             project.name = data.get('name', project.name)
-            project.description = data.get('description', project.description)  # Update description
-            
-            # Validate and update dates if provided
-            if 'start_date' in data or 'deadline' in data:
-                start_date = data.get('start_date', project.start_date)
-                deadline = data.get('deadline', project.deadline)
-                validate_project_dates(start_date, deadline)
-                project.start_date = start_date
-                project.deadline = deadline
-            
-            # Update project status dynamically
-            update_project_status(project)
+            project.description = data.get('description', project.description)
             
             project.save()
         
-        return JsonResponse({
-            'status': 'success',
-            'message': 'Project updated successfully',
-            'project': {
-                'id': project.id,
-                'name': project.name,
-                'status': project.status,
-                'description': project.description  # Include the updated description in the response
-            }
-        })
-        
+        return redirect(reverse('aps_admin:project_dashboard'))  # Adjust the name of the URL pattern if needed
+
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
-    
+
+
+def parse_request_data(request):
+    """Helper function to parse data from the request"""
+    return {
+        'name': request.POST.get('name'),
+        'description': request.POST.get('description'),
+        'start_date': request.POST.get('start_date'),
+        'deadline': request.POST.get('deadline'),
+        'status': request.POST.get('status'),
+    }
+
+
+
+
+
 @login_required
+@user_passes_test(is_admin)
 @require_http_methods(["POST"])
 def project_delete(request, project_id):
     """Handle project deletion"""
     try:
         project = get_object_or_404(Project, id=project_id)
-        
+
         with transaction.atomic():
             # Soft delete all assignments
             ProjectAssignment.objects.filter(project=project).update(
                 is_active=False,
                 end_date=timezone.now().date()
             )
-            
+
             # Soft delete all client participations
             ClientParticipation.objects.filter(project=project).update(is_active=False)
-            
+
             # Delete the project
             project.delete()
-        
+
         logger.info(f"Project deleted successfully: {project.name}")
-        return redirect(reverse('aps_admin:project_dashboard'))
-        
+        return redirect(reverse('aps_admin:project_dashboard'))  # This is fine after defining the URL
+
     except Exception as e:
         logger.error(f"Error deleting project: {str(e)}")
         return JsonResponse({'status': 'error', 'message': 'Internal server error'}, status=500)
-    
+
 @login_required
 @require_http_methods(["POST"])
 def assign_employee(request, project_id):
     """Handle employee assignment to project"""
     try:
-        project = get_object_or_404(Project, id=project_id)
-        data = parse_request_data(request)
-        
-        user_id = data.get('user_id')
-        role = data.get('role', 'Employee')
-        
-        if not user_id:
-            raise ValidationError("User ID is required")
-        
-        assignment = ProjectAssignment.objects.filter(
-            project=project,
-            user_id=user_id
-        ).first()
-        
-        created = handle_assignment_changes(project, assignment, 'assign', role)
-        
-        logger.info(f"Employee {'assigned' if created else 'updated'} successfully: {user_id} to {project.name}")
-        return JsonResponse({
-            'status': 'success',
-            'message': f"Employee {'assigned' if created else 'updated'} successfully"
-        })
-        
-    except ValidationError as e:
-        logger.warning(f"Validation error in employee assignment: {str(e)}")
-        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+        with transaction.atomic():
+            project = get_object_or_404(Project, id=project_id)
+            user_id = request.POST.get('user_id')
+            role = request.POST.get('role', 'Employee')
+            
+            if not user_id:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'User ID is required'
+                }, status=400)
+
+            # Get or create assignment
+            assignment = ProjectAssignment.objects.filter(
+                project=project,
+                employee_id=user_id
+            ).first()
+
+            is_new = handle_assignment_changes(project, assignment, 'assign', role)
+
+            if not assignment:  # Create new assignment if none exists
+                assignment = ProjectAssignment.objects.create(
+                    project=project,
+                    employee_id=user_id,
+                    role_in_project=role,
+                    is_active=True
+                )
+
+            return JsonResponse({
+                'status': 'success',
+                'message': 'Employee assigned successfully',
+                'assignment': {
+                    'employee_id': assignment.employee_id,
+                    'role': assignment.role_in_project,
+                    'is_new': is_new
+                }
+            })
+
     except Exception as e:
-        logger.error(f"Error assigning employee: {str(e)}")
-        return JsonResponse({'status': 'error', 'message': 'Internal server error'}, status=500)
+        return JsonResponse({
+            'status': 'error',
+            'message': str(e)
+        }, status=500)
 
 @login_required
 @require_http_methods(["POST"])
