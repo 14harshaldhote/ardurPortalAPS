@@ -24,8 +24,22 @@ admin_patterns = [
     path('projects/create/', views.project_create, name='project_create'),
     path('projects/update/<int:project_id>/', views.project_update, name='project_update'),
     path('projects/<int:project_id>/delete/', views.project_delete, name='project_delete'),
-    path('projects/<int:project_id>/assign_employee/', views.assign_employee, name='assign_employee'),
+
+    path('projects/<int:project_id>/assign/', views.assign_employee, name='assign_employee'),
+
+    # Remove employee from project (soft delete)
+    path('projects/<int:project_id>/remove/', views.assign_employee, name='remove_member'),
+
+    # Reactivate previously removed employee
+    path('projects/<int:project_id>/reactivate/', views.reactivate_employee, name='reactivate_member'),
+
+    # Change role of an assigned employee
+    path('projects/<int:project_id>/change-role/', views.change_role, name='change_role'),
+
+    # Update project hours
     path('projects/<int:project_id>/update_hours/', views.update_hours, name='update_hours'),
+
+
 
  
     path('attendance/', views.admin_attendance_view, name='attendance'),  # Admin attendance summary

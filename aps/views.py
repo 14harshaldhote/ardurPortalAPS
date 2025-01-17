@@ -16,6 +16,10 @@ from .helpers import is_user_in_group
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 import json
 from django.utils.dateparse import parse_date
+from django.views.decorators.csrf import csrf_exempt
+import sys
+import traceback
+
 
 
 ''' ------------------ ROLE-BASED CHECKS ------------------ '''
@@ -1071,62 +1075,94 @@ def get_users_from_group(group_name):
 # Assuming logger is set up
 logger = logging.getLogger(__name__)
 
+@login_required
 def project_dashboard(request):
-    """Main dashboard view handling all project operations"""
     try:
+        today = date.today()
+
         # Get all active projects with related data
         projects = Project.objects.prefetch_related(
             'users', 
             'clients', 
-            'projectassignment_set__user',  # Prefetch assignments
-            'client_participations'  # Corrected this line to match related_name
+            'projectassignment_set__user',
+            'client_participations'
         ).all()
 
-        today = date.today()
-
-        # Loop through each project to calculate the deadline warning based on percentage
+        # Print the project objects (you can adjust this as needed)
+        print("Projects data:")
         for project in projects:
-            # Calculate the number of days between the start date and deadline
+            print(f"Project ID: {project.id}, Project Name: {project.name}, Deadline: {project.deadline}")
+
+            # Print the users related to the project (through projectassignment_set)
+            print(f"Assigned Users for Project {project.name}:")
+            for assignment in project.projectassignment_set.all():
+                user = assignment.user
+                print(f"  - User: {user.get_full_name()} (ID: {user.id}, Role: {assignment.get_role_in_project_display()})")
+
+        for project in projects:
+            # Calculate project duration and remaining days
             project_duration = (project.deadline - project.start_date).days
             remaining_days = (project.deadline - today).days
             
-            # Calculate the percentage of time remaining
-            if project_duration > 0:  # Avoid division by zero
-                remaining_percentage = (remaining_days / project_duration) * 100
-            else:
-                remaining_percentage = 0
+            remaining_percentage = max((remaining_days / project_duration) * 100, 0) if project_duration > 0 else 0
 
-            # Set the warning threshold dynamically (e.g., trigger when 10% of the project duration remains)
-            if remaining_percentage <= 10 and remaining_days >= 0:
-                project.is_deadline_close = True
-            else:
-                project.is_deadline_close = False
+            # Set deadline status
+            project.is_deadline_close = 0 <= remaining_percentage <= 10
 
-        # Get employees from 'Employee' group
+            # Fetch active and removed assignments
+            project.active_assignments = project.projectassignment_set.filter(is_active=True)
+            project.removed_assignments = project.projectassignment_set.filter(is_active=False)
+
+            # Print active assignments
+            print(f"Project: {project.name} (Active Assignments)")
+            for assignment in project.active_assignments:
+                assignment.user.full_name = assignment.user.get_full_name()
+                print(f"  - {assignment.user.full_name} (ID: {assignment.user.id}, Role: {assignment.get_role_in_project_display()})")
+            
+            # Print removed assignments
+            print(f"Project: {project.name} (Removed Assignments)")
+            for assignment in project.removed_assignments:
+                assignment.user.full_name = assignment.user.get_full_name()
+                print(f"  - {assignment.user.full_name} (ID: {assignment.user.id}, Ended: {assignment.end_date})")
+
+        # Fetch users by group
         employees = get_users_from_group('Employee')
-
-        # Get managers from 'Manager' group
         managers = get_users_from_group('Manager')
-
-        # Get clients from 'Client' group
         clients = get_users_from_group('Client')
+                
+        # Fetch role choices
+        role_choices = dict(ProjectAssignment._meta.get_field('role_in_project').choices)
 
-        # Prepare context
+        # Context for rendering the template
         context = {
             'projects': projects,
             'employees': employees,
             'clients': clients,
-            'managers': managers,  # Pass managers separately to the template
+            'managers': managers,
             'project_statuses': dict(Project._meta.get_field('status').choices),
-            'role_choices': dict(ProjectAssignment._meta.get_field('role_in_project').choices),
+            'role_choices': role_choices,
+            'active_assignments': project.active_assignments,  # Ensure this is passed
+            'removed_assignments': project.removed_assignments,  # Ensure this is passed
+
         }
 
         return render(request, 'components/admin/project_view.html', context)
 
     except Exception as e:
+        # Capture exception details
+        exc_type, exc_value, exc_tb = sys.exc_info()
+        error_details = traceback.format_exception(exc_type, exc_value, exc_tb)
+
+        # Log error and display error message
         logger.error(f"Dashboard error: {str(e)}")
         messages.error(request, "Error loading dashboard")
-        return render(request, 'error.html', {'error': str(e)})
+
+        # Provide detailed error information in the context for debugging
+        context = {
+            'error': str(e),
+            'error_details': error_details,
+        }
+        return render(request, 'error.html', context)
 
 
 @login_required
@@ -1198,10 +1234,7 @@ def update_project_status(project):
         project.status = 'On Hold'
     
     project.save()
-
-     
-     
-
+  
 @login_required
 @user_passes_test(is_admin)
 @require_http_methods(["POST"])
@@ -1267,9 +1300,6 @@ def parse_request_data(request):
     }
 
 
-
-
-
 @login_required
 @user_passes_test(is_admin)
 @require_http_methods(["POST"])
@@ -1298,53 +1328,154 @@ def project_delete(request, project_id):
         logger.error(f"Error deleting project: {str(e)}")
         return JsonResponse({'status': 'error', 'message': 'Internal server error'}, status=500)
 
+
+@csrf_exempt
 @login_required
 @require_http_methods(["POST"])
 def assign_employee(request, project_id):
-    """Handle employee assignment to project"""
+    """Handle employee assignment to project dynamically, including deactivation"""
     try:
         with transaction.atomic():
+            print(f"Transaction started for project_id: {project_id}")
             project = get_object_or_404(Project, id=project_id)
+            print(f"Project found: {project.name} (ID: {project.id})")
+
             user_id = request.POST.get('user_id')
             role = request.POST.get('role', 'Employee')
-            
+            action = request.POST.get('action', 'assign')  # Action for remove or assign
+            print(f"Received data - user_id: {user_id}, role: {role}, action: {action}")
+
             if not user_id:
                 return JsonResponse({
                     'status': 'error',
                     'message': 'User ID is required'
                 }, status=400)
 
-            # Get or create assignment
-            assignment = ProjectAssignment.objects.filter(
-                project=project,
-                employee_id=user_id
-            ).first()
+            # Ensure role is valid
+            role_choices = dict(ProjectAssignment._meta.get_field('role_in_project').choices)
+            if role not in role_choices:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': f'Invalid role. Available roles are {", ".join(role_choices.keys())}'
+                }, status=400)
 
-            is_new = handle_assignment_changes(project, assignment, 'assign', role)
+            user = get_object_or_404(User, id=user_id)
+            print(f"User found: {user.username} (ID: {user.id})")
 
-            if not assignment:  # Create new assignment if none exists
-                assignment = ProjectAssignment.objects.create(
+            if action == 'remove':
+                assignment = project.projectassignment_set.filter(user=user, is_active=True).first()
+
+                if not assignment:
+                    return JsonResponse({
+                        'status': 'error',
+                        'message': f'No active assignment found for employee {user.username} in this project'
+                    }, status=404)
+
+                # Soft delete by marking inactive
+                assignment.is_active = False
+                assignment.end_date = timezone.now().date()
+                assignment.save()
+                return JsonResponse({
+                    'status': 'success',
+                    'message': f'Employee {user.username} removed from the project'
+                })
+
+            # Check if the employee has been previously removed (soft deleted)
+            assignment = project.projectassignment_set.filter(user=user, is_active=False).first()
+
+            if assignment:
+                # Reactivate the assignment if it was previously removed
+                assignment.is_active = True
+                assignment.role_in_project = role
+                assignment.end_date = None  # Clear end_date if reactivating
+                assignment.save()
+                return JsonResponse({
+                    'status': 'success',
+                    'message': f'Employee {user.username} reactivated in the project'
+                })
+            else:
+                # Handle assigning or updating an employee's role if not previously removed
+                assignment, created = ProjectAssignment.objects.get_or_create(
                     project=project,
-                    employee_id=user_id,
-                    role_in_project=role,
-                    is_active=True
+                    user=user
                 )
 
-            return JsonResponse({
-                'status': 'success',
-                'message': 'Employee assigned successfully',
-                'assignment': {
-                    'employee_id': assignment.employee_id,
-                    'role': assignment.role_in_project,
-                    'is_new': is_new
-                }
-            })
+                assignment.role_in_project = role
+                assignment.is_active = True
+                assignment.save()
+
+                return JsonResponse({
+                    'status': 'success',
+                    'message': f'Employee {user.username} assigned to the project with role {role}'
+                })
 
     except Exception as e:
-        return JsonResponse({
-            'status': 'error',
-            'message': str(e)
-        }, status=500)
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+@csrf_exempt
+@login_required
+@require_http_methods(["POST"])
+def change_role(request, project_id):
+    """Handle changing the role of an assigned employee"""
+    try:
+        with transaction.atomic():
+            project = get_object_or_404(Project, id=project_id)
+            user_id = request.POST.get('user_id')
+            new_role = request.POST.get('role', 'Employee')
+
+            if not user_id:
+                return JsonResponse({'status': 'error', 'message': 'User ID is required'}, status=400)
+
+            # Ensure role is valid
+            role_choices = dict(ProjectAssignment._meta.get_field('role_in_project').choices)
+            if new_role not in role_choices:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': f'Invalid role. Available roles are {", ".join(role_choices.keys())}'
+                }, status=400)
+
+            user = get_object_or_404(User, id=user_id)
+            assignment = project.projectassignment_set.filter(user=user, is_active=True).first()
+
+            if not assignment:
+                return JsonResponse({'status': 'error', 'message': 'No active assignment found for this user'}, status=404)
+
+            assignment.role_in_project = new_role
+            assignment.save()
+
+            return JsonResponse({'status': 'success', 'message': 'Employee role updated successfully'})
+
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+@csrf_exempt
+@login_required
+@require_http_methods(["POST"])
+def reactivate_employee(request, project_id):
+    """Handle reactivating a previously removed employee"""
+    try:
+        with transaction.atomic():
+            project = get_object_or_404(Project, id=project_id)
+            user_id = request.POST.get('user_id')
+
+            if not user_id:
+                return JsonResponse({'status': 'error', 'message': 'User ID is required'}, status=400)
+
+            user = get_object_or_404(User, id=user_id)
+            assignment = project.projectassignment_set.filter(user=user, is_active=False).first()
+
+            if not assignment:
+                return JsonResponse({'status': 'error', 'message': 'No removed assignment found for this user'}, status=404)
+
+            assignment.is_active = True
+            assignment.end_date = None  # Clear end date
+            assignment.save()
+
+            return JsonResponse({'status': 'success', 'message': 'Employee reactivated successfully'})
+
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
 
 @login_required
 @require_http_methods(["POST"])

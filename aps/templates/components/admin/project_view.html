@@ -189,7 +189,8 @@
                                     Delete
                                 </button>
 
-                                <button type="button"
+                                <button type="button" 
+                                    id="openAssignEmployeeModal{{ project.id }}"
                                     class="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                                     Assign
                                 </button>
@@ -269,6 +270,7 @@
     {% for project in projects %}
     {% include 'components/admin/project/deleteModal.html' %}
     {% include 'components/admin/project/updateModal.html' %}
+    {% include 'components/admin/project/assignModal.html' %}
     {% endfor %}
     <script>
         document.addEventListener('DOMContentLoaded', function () {
@@ -336,17 +338,43 @@
                 });
             });
             // Submit the form when the "Update Project" button is clicked
-        document.querySelectorAll('[id^="submitProjectUpdateForm"]').forEach(button => {
-            button.addEventListener('click', function () {
-                const projectId = this.id.replace('submitProjectUpdateForm', '');
-                const form = document.getElementById('projectUpdateForm' + projectId);
-                form.submit();  // Submit the form
+            document.querySelectorAll('[id^="submitProjectUpdateForm"]').forEach(button => {
+                button.addEventListener('click', function () {
+                    const projectId = this.id.replace('submitProjectUpdateForm', '');
+                    const form = document.getElementById('projectUpdateForm' + projectId);
+                    form.submit();  // Submit the form
+                });
             });
-        });
         });
 
 
     </script>
+    <!-- Trigger Button -->
+<!-- Trigger Button -->
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Open modal when "Assign or Update Employees" button is clicked
+        document.querySelectorAll('[id^="openAssignEmployeeModal"]').forEach(button => {
+            button.addEventListener('click', function () {
+                const projectId = this.id.replace('openAssignEmployeeModal', '');
+                document.getElementById('assignEmployeeModal' + projectId).classList.remove('hidden');
+            });
+        });
+
+        // Close modal when "Close" button is clicked
+        document.querySelectorAll('[id^="closeAssignEmployeeModal"]').forEach(button => {
+            button.addEventListener('click', function () {
+                const projectId = this.id.replace('closeAssignEmployeeModal', '');
+                document.getElementById('assignEmployeeModal' + projectId).classList.add('hidden');
+            });
+        });
+    });
+
+    function closeModal(modalId) {
+        document.getElementById(modalId).classList.add('hidden');
+    }
+</script>
+
 
 
 
