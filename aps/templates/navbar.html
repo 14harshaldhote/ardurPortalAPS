@@ -10,13 +10,15 @@
                 Dashboard
             </a>
         </li>
-        <li>
-            <a href="{% url 'user_profile' request.user.id %}"
-                class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
-                Profile
-            </a>
-        </li>
-        
+        {% if not is_admin %}
+    <li>
+        <a href="{% url 'user_profile' request.user.id %}"
+            class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
+            Profile
+        </a>
+    </li>
+{% endif %}
+
 
         <!-- Employee Specific -->
         {% if is_employee %}

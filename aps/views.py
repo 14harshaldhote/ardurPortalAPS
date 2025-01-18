@@ -3,7 +3,7 @@ from django.contrib.auth.models import User, Group
 from .models import (UserSession, Attendance, SystemError, 
                     Support, FailedLoginAttempt, PasswordChange, 
                     RoleAssignmentAudit, FeatureUsage, SystemUsage, 
-                    Timesheet,
+                    Timesheet,GlobalUpdate,
                     Message, Chat,UserDetails)
 from django.db.models import Q
 from datetime import datetime, timedelta, date
@@ -19,6 +19,18 @@ from django.utils.dateparse import parse_date
 from django.views.decorators.csrf import csrf_exempt
 import sys
 import traceback
+from django.db import transaction
+from django.shortcuts import render
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from .models import Attendance
+
+from django.http import HttpResponse
+from django.template.loader import render_to_string
+import csv
+import openpyxl
+from datetime import datetime, timedelta
+
 
 
 
@@ -184,28 +196,223 @@ def get_attendance_stats(user):
         'change_display': abs(attendance_change) if attendance_change < 0 else attendance_change
     }
 
-# Main dashboard view
+
 @login_required
 def dashboard_view(request):
+    from datetime import datetime, timedelta
+    from django.utils.timezone import now
+
     user = request.user
 
-    # Get data for the attendance card (as you had before)
-    attendance_data = get_attendance_stats(user)
+    # Check if the user has the HR role
+    is_hr = user.groups.filter(name='HR').exists()
 
-    # Retrieve all assignments where the logged-in user is assigned to any role
+    # Variables for attendance stats and active projects
+    present_employees = absent_employees = active_projects = None
+
+    # Get today's date
+    today = now().date()
+
+    # Get date range from request (default to today if not provided)
+    start_date = request.GET.get('start_date', today)
+    end_date = request.GET.get('end_date', today)
+
+    # Parse date range if provided as strings
+    if isinstance(start_date, str):
+        start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+    if isinstance(end_date, str):
+        end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+
+    # Ensure the end date is inclusive
+    end_date += timedelta(days=1)
+
+    if is_hr:
+        # Get attendance stats
+        present_employees = Attendance.objects.filter(
+            status='Present', date__range=[start_date, end_date]
+        ).count()
+        absent_employees = Attendance.objects.filter(
+            status='Absent', date__range=[start_date, end_date]
+        ).count()
+
+        # Get active projects
+        active_projects = Project.objects.filter(status='Active').count()
+
+    # Retrieve assignments and projects for non-HR users
     assignments = ProjectAssignment.objects.filter(user=user)
-
-    # Get the projects from the assignments
     projects = [assignment.project for assignment in assignments]
+
+    # Retrieve global updates
+    updates = GlobalUpdate.objects.all().order_by('-created_at')
+
+    # Check if we are editing an update
+    update = None
+    if 'update_id' in request.GET:
+        update = GlobalUpdate.objects.filter(id=request.GET['update_id']).first()
 
     # Context for the dashboard view
     context = {
-        'attendance': attendance_data,
-        'projects': projects,  # Pass the projects to the template
+        'attendance': get_attendance_stats(user),  # Function to fetch overall attendance stats for the user
+        'projects': projects,
+        'updates': updates,
+        'is_hr': is_hr,
+        'update': update,
+        'present_employees': present_employees,
+        'absent_employees': absent_employees,
+        'active_projects': active_projects,  # Pass active projects for HR
+        'start_date': start_date,
+        'end_date': end_date - timedelta(days=1),  # Exclude added day
+        'show_employee_directory': is_hr,
     }
 
     return render(request, 'dashboard.html', context)
 
+
+from django.utils.timezone import now, timezone
+
+
+
+@user_passes_test(is_hr)
+@login_required
+def employee_directory(request):
+    # Check if the user has the HR role
+    if not request.user.groups.filter(name='HR').exists():
+        return JsonResponse({'error': 'Permission denied'}, status=403)
+
+    # Fetch all employee details
+    employees = UserDetails.objects.all().values(
+        'id', 'user__username', 'user__first_name', 'user__last_name', 'contact_number_primary', 'personal_email'
+    )
+    
+    # Convert queryset to list of dictionaries
+    employee_data = list(employees)
+    
+    # Return the data as JSON
+    return JsonResponse({'employees': employee_data})
+
+# Create global update view
+@login_required
+@transaction.atomic
+def hr_create_update(request):
+    if not request.user.groups.filter(name='HR').exists():
+        messages.error(request, "You do not have permission to manage global updates.")
+        return redirect('dashboard')
+
+    if request.method == 'POST':
+        title = request.POST.get('title')
+        description = request.POST.get('description')
+        status = request.POST.get('status', 'upcoming')
+        scheduled_date_str = request.POST.get('scheduled_date')
+
+        if not title or not description:
+            messages.error(request, "Title and description are required.")
+            return redirect('dashboard')
+
+        try:
+            scheduled_date = None
+            if scheduled_date_str:
+                scheduled_date = datetime.strptime(scheduled_date_str, '%Y-%m-%dT%H:%M')
+                scheduled_date = timezone.make_aware(scheduled_date)  # Make timezone-aware
+
+            new_update = GlobalUpdate.objects.create(
+                title=title,
+                description=description,
+                status=status,
+                scheduled_date=scheduled_date,
+                managed_by=request.user,
+            )
+
+            messages.success(request, "Global update created successfully.")
+            return redirect('dashboard')
+        except Exception as e:
+            messages.error(request, "Error creating update. Please try again.")
+            return redirect('dashboard')
+
+    return redirect('dashboard')
+
+# Get update data API for editing
+@login_required
+def get_update_data(request, update_id):
+    """API endpoint to fetch update data for editing"""
+    if not request.user.groups.filter(name='HR').exists():
+        return JsonResponse({'error': 'Permission denied'}, status=403)
+
+    try:
+        update = get_object_or_404(GlobalUpdate, id=update_id)
+        data = {
+            'title': update.title,
+            'description': update.description,
+            'status': update.status,
+            'scheduled_date': update.scheduled_date.isoformat() if update.scheduled_date else '',
+        }
+        return JsonResponse(data)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+# Edit global update view
+@login_required
+@transaction.atomic
+def hr_edit_update(request, update_id):
+    """View to handle update editing"""
+    update = get_object_or_404(GlobalUpdate, id=update_id)
+    
+    # Check permissions
+    if not request.user.groups.filter(name='HR').exists():
+        messages.error(request, "You do not have permission to edit this update.")
+        return JsonResponse({'error': 'Permission denied'}, status=403)
+    
+    if request.method == 'POST':
+        try:
+            # Get form data
+            title = request.POST.get('title')
+            description = request.POST.get('description')
+            status = request.POST.get('status')
+            scheduled_date_str = request.POST.get('scheduled_date')
+            
+            # Validate required fields
+            if not title or not description:
+                return JsonResponse({'error': 'Title and description are required'}, status=400)
+            
+            # Update fields
+            update.title = title
+            update.description = description
+            update.status = status
+            
+            if scheduled_date_str:
+                try:
+                    scheduled_date = datetime.strptime(scheduled_date_str, '%Y-%m-%dT%H:%M')
+                    update.scheduled_date = timezone.make_aware(scheduled_date)
+                except ValueError:
+                    return JsonResponse({'error': 'Invalid date format'}, status=400)
+            else:
+                update.scheduled_date = None
+            
+            update.save()
+            messages.success(request, "Global update edited successfully.")
+            return redirect('dashboard')  # Redirect to the dashboard after successful deletion
+            
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+    
+    return JsonResponse({'error': 'Invalid request method'}, status=405)
+
+# Delete global update view
+@login_required
+@transaction.atomic
+def hr_delete_update(request, update_id):
+    """View to handle update deletion"""
+    if not request.user.groups.filter(name='HR').exists():
+        return JsonResponse({'error': 'Permission denied'}, status=403)
+
+    try:
+        update = get_object_or_404(GlobalUpdate, id=update_id)
+        update.delete()
+        messages.success(request, "Global update deleted successfully.")
+        return redirect('dashboard')  # Redirect to the dashboard after successful deletion
+        
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+    
 ''' --------------------------------------------------------- USER DETAILS AREA --------------------------------------------------------- '''
 
 # aps/views.py
@@ -1871,6 +2078,8 @@ def manager_project_view(request, action=None, project_id=None):
 # Views with optimized database queries
 import calendar
 
+
+
 @login_required
 def employee_attendance_view(request):
     # Get the month and year from the request, fallback to the current month/year
@@ -1991,16 +2200,7 @@ def manager_attendance_view(request):
 
     return render(request, 'components/manager/manager_attendance.html', {'team_attendance': team_records})
 
-from django.shortcuts import render
-from django.contrib.auth.decorators import login_required, user_passes_test
-from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
-from .models import Attendance
 
-from django.http import HttpResponse
-from django.template.loader import render_to_string
-import csv
-import openpyxl
-from datetime import datetime, timedelta
 @login_required
 @user_passes_test(is_hr)
 def hr_attendance_view(request):
@@ -2079,6 +2279,7 @@ def hr_attendance_view(request):
         'leave_count': leave_count,
         'lop_count': lop_count,  # Include Loss of Pay count in the template context
     })
+
 
 def export_attendance_csv(queryset):
     response = HttpResponse(content_type='text/csv')

@@ -69,14 +69,19 @@ hr_patterns = [
     # HR views for leave management
     path('leave/requests/', views.view_leave_requests_hr, name='view_leave_requests_hr'),
     path('leave/<int:leave_id>/<str:action>/', views.manage_leave_request_hr, name='manage_leave_hr'),
-# Attendance-related URLs for HR
     path('attendance/', views.hr_attendance_view, name='attendance'),  # HR attendance summary
-
-    path('hr/dashboard/', views.hr_dashboard, name='hr_dashboard'),
+    path('userdetails/', views.hr_dashboard, name='hr_dashboard'),
     path('user/<int:user_id>/', views.hr_user_detail, name='hr_user_detail'),
-
     path('hr/support/', views.hr_support, name='hr_support'),
     path('hr/support/<uuid:ticket_id>/', views.hr_support, name='hr_support_with_ticket'),  
+    path('hr/get-update/<int:update_id>/', views.get_update_data, name='get_update_data'),
+    path('hr/create-update/', views.hr_create_update, name='hr_create_update'),
+    path('hr/edit-update/<int:update_id>/', views.hr_edit_update, name='hr_edit_update'),
+    path('hr/delete-update/<int:update_id>/', views.hr_delete_update, name='hr_delete_update'),
+
+
+    path('employees/', views.employee_directory, name='employee_directory'),
+
 
 ]
 
