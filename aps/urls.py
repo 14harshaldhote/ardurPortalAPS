@@ -115,6 +115,10 @@ urlpatterns = [
     path('set_password/<str:username>/', views.set_password_view, name='set_password'),  # Set password for a specific user
 
     path('profile/<int:user_id>/', views.user_profile, name='user_profile'),
+    
+    path('update-last-activity/', views.update_last_activity, name='update_last_activity'),
+    path('end-session/', views.end_session, name='end_session'),
+
 
     
     # Chat-related views

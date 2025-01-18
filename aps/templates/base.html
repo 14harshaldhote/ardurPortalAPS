@@ -1,16 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
- 
-    
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{% block title %}Tracking Web Application{% endblock %}</title>
+    {% load static %}
+
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@2.8.2/dist/alpine.min.js" defer></script>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.0.0/dist/tailwind.min.css" rel="stylesheet">
-
-
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Linlegrey:wght@400;700&display=swap" rel="stylesheet">
     <style>
@@ -59,8 +57,6 @@
             width: 200px;
         }
 
-        /* Make navbar fixed */
-        /* Modern Navbar Base Styles */
         .navbar {
             position: fixed;
             top: 0;
@@ -74,11 +70,8 @@
                 0 2px 4px -1px rgba(0, 0, 0, 0.03);
         }
 
-       
-
         .content-wrapper {
             margin-left: 240px;
-            /* Same as navbar width */
             padding: 20px;
             flex-grow: 1;
             overflow-y: auto;
@@ -90,7 +83,6 @@
 <body>
     <div class="flex">
         <div class="navbar">
-            
             {% include 'navbar.html' %}
         </div>
 
@@ -102,9 +94,8 @@
 
                 <div class="text-sm text-white flex items-center space-x-4">
                     <span class="font-semibold text-black username">{{ user.username }}</span>
-                    <a href="{% url 'logout' %}" class="inline-block py-2 px-6 rounded-full bg-red-500 text-white 
-                        font-semibold uppercase tracking-wider transform transition-all duration-300 ease-in-out 
-                        hover:bg-red-600 hover:scale-105 focus:ring-4 focus:ring-red-300">
+                    <a href="{% url 'logout' %}"
+                        class="inline-block py-2 px-6 rounded-full bg-red-500 text-white font-semibold uppercase tracking-wider transform transition-all duration-300 ease-in-out hover:bg-red-600 hover:scale-105 focus:ring-4 focus:ring-red-300">
                         Logout
                     </a>
                 </div>
@@ -115,181 +106,154 @@
                 {% endblock %}
             </div>
 
-            {% load static %}
             <img src="{% static 'images/ardurtech.png' %}" alt="Ardur Technology Watermark" class="watermark">
         </div>
     </div>
 
-    <!-- JavaScript for idle time tracking -->
-    <script defer>
-        let idleTime = 0;
-
-        function resetIdleTime() {
-            idleTime = 0;
-        }
-
-        function incrementIdleTime() {
-            idleTime++;
-            if (idleTime > 5) { // 5 minutes of idle time
-                // Send idle time to the server to update session
-                fetch('/update_idle_time/', {
-                    method: 'POST',
-                    body: JSON.stringify({ idle_time: idleTime }),
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value // Add CSRF token
-                    }
-                });
-            }
-        }
-
-        setInterval(incrementIdleTime, 60000); // Every minute
-        document.addEventListener('mousemove', resetIdleTime);
-        document.addEventListener('keypress', resetIdleTime);
-
+    <!-- Scripts -->
+    <script>
         // Dynamic Greeting
         function getGreeting() {
             const hour = new Date().getHours();
-            if (hour < 12) {
-                return "Good Morning";
-            } else if (hour < 18) {
-                return "Good Afternoon";
-            } else {
-                return "Good Evening";
-            }
-        }
-        document.addEventListener('DOMContentLoaded', function() {
-    // First check if elements exist
-    const statusIndicator = document.getElementById("status-indicator");
-    const statusText = document.getElementById("status-text");
-    const statusDot = document.getElementById("status-dot");
-
-    // Only proceed if all elements are found
-    if (statusIndicator && statusText && statusDot) {
-        let idleTime = 0;
-
-        // Function to calculate color based on idle time
-        function getGradientColor(idleSeconds) {
-            // Constants for color definitions
-            const colors = {
-                start: {
-                    primary: { r: 74, g: 222, b: 128 },    // Bright green
-                    secondary: { r: 34, g: 197, b: 94 }    // Darker green
-                },
-                middle: {
-                    primary: { r: 250, g: 204, b: 21 },    // Yellow
-                    secondary: { r: 234, g: 179, b: 8 }    // Darker yellow
-                },
-                end: {
-                    primary: { r: 239, g: 68, b: 68 },     // Bright red
-                    secondary: { r: 220, g: 38, b: 38 }    // Darker red
-                }
-            };
-
-            // For first 30 seconds, stay green
-            if (idleSeconds <= 30) {
-                return `linear-gradient(to right, 
-                    rgb(${colors.start.primary.r}, ${colors.start.primary.g}, ${colors.start.primary.b}), 
-                    rgb(${colors.start.secondary.r}, ${colors.start.secondary.g}, ${colors.start.secondary.b}))`;
-            }
-
-            // Between 30-60 seconds, create smooth transition
-            if (idleSeconds <= 60) {
-                // Calculate progress (0 to 1)
-                const progress = (idleSeconds - 30) / 30;
-                
-                // Use cubic easing for smoother transition
-                const easedProgress = progress * progress * (3 - 2 * progress);
-                
-                // First half of transition (green to yellow)
-                if (progress <= 0.5) {
-                    const normalizedProgress = easedProgress * 2;
-                    
-                    // Calculate interpolated colors for first gradient color
-                    const r1 = Math.round(colors.start.primary.r + (colors.middle.primary.r - colors.start.primary.r) * normalizedProgress);
-                    const g1 = Math.round(colors.start.primary.g + (colors.middle.primary.g - colors.start.primary.g) * normalizedProgress);
-                    const b1 = Math.round(colors.start.primary.b + (colors.middle.primary.b - colors.start.primary.b) * normalizedProgress);
-                    
-                    // Calculate interpolated colors for second gradient color
-                    const r2 = Math.round(colors.start.secondary.r + (colors.middle.secondary.r - colors.start.secondary.r) * normalizedProgress);
-                    const g2 = Math.round(colors.start.secondary.g + (colors.middle.secondary.g - colors.start.secondary.g) * normalizedProgress);
-                    const b2 = Math.round(colors.start.secondary.b + (colors.middle.secondary.b - colors.start.secondary.b) * normalizedProgress);
-                    
-                    return `linear-gradient(to right, rgb(${r1}, ${g1}, ${b1}), rgb(${r2}, ${g2}, ${b2}))`;
-                } 
-                // Second half of transition (yellow to red)
-                else {
-                    const normalizedProgress = (easedProgress - 0.5) * 2;
-                    
-                    // Calculate interpolated colors for first gradient color
-                    const r1 = Math.round(colors.middle.primary.r + (colors.end.primary.r - colors.middle.primary.r) * normalizedProgress);
-                    const g1 = Math.round(colors.middle.primary.g + (colors.end.primary.g - colors.middle.primary.g) * normalizedProgress);
-                    const b1 = Math.round(colors.middle.primary.b + (colors.end.primary.b - colors.middle.primary.b) * normalizedProgress);
-                    
-                    // Calculate interpolated colors for second gradient color
-                    const r2 = Math.round(colors.middle.secondary.r + (colors.end.secondary.r - colors.middle.secondary.r) * normalizedProgress);
-                    const g2 = Math.round(colors.middle.secondary.g + (colors.end.secondary.g - colors.middle.secondary.g) * normalizedProgress);
-                    const b2 = Math.round(colors.middle.secondary.b + (colors.end.secondary.b - colors.middle.secondary.b) * normalizedProgress);
-                    
-                    return `linear-gradient(to right, rgb(${r1}, ${g1}, ${b1}), rgb(${r2}, ${g2}, ${b2}))`;
-                }
-            }
-
-            // After 60 seconds, stay red
-            return `linear-gradient(to right, 
-                rgb(${colors.end.primary.r}, ${colors.end.primary.g}, ${colors.end.primary.b}), 
-                rgb(${colors.end.secondary.r}, ${colors.end.secondary.g}, ${colors.end.secondary.b}))`;
+            if (hour < 12) return "Good Morning";
+            else if (hour < 18) return "Good Afternoon";
+            return "Good Evening";
         }
 
-        // Function to reset idle time
-        function resetIdleTime() {
-            idleTime = 0;
-            updateStatus();
-        }
-
-        // Function to increment idle time
-        function incrementIdleTime() {
-            idleTime++;
-            updateStatus();
-        }
-
-        // Function to update status display
-        function updateStatus() {
-            // Update gradient color
-            statusIndicator.style.background = getGradientColor(idleTime);
-            
-            // Update status text and animation
-            if (idleTime <= 30) {
-                statusText.innerText = "Online";
-                statusDot.classList.add('animate-ping');
-            } else if (idleTime <= 45) {
-                statusText.innerText = "Idle";
-                statusDot.classList.add('animate-ping');
-            } else {
-                statusText.innerText = "Inactive";
-                statusDot.classList.remove('animate-ping');
-            }
-            
-            // Add transition effect
-            statusIndicator.style.transition = 'background 0.5s ease';
-        }
-
-        // Initialize event listeners
-        document.addEventListener('mousemove', resetIdleTime);
-        document.addEventListener('keypress', resetIdleTime);
-        document.addEventListener('click', resetIdleTime);
-        document.addEventListener('scroll', resetIdleTime);
-
-        // Start the idle timer
-        setInterval(incrementIdleTime, 1000); // Check every second
-
-        // Initial status update
-        updateStatus();
-    }
-});
-        document.addEventListener("DOMContentLoaded", function () {
+        document.addEventListener('DOMContentLoaded', function () {
             const greetingElement = document.getElementById("greeting");
             greetingElement.innerHTML = `${getGreeting()} <span class="font-semibold text-xl">{{ user.first_name }} {{ user.last_name }}</span>`;
+        });
+    </script>
+
+    <!-- Add this to your base.html -->
+    <script>
+        class SessionManager {
+            constructor(idleThresholdMinutes = 1) {
+                this.idleTime = 0;
+                this.idleThreshold = idleThresholdMinutes * 60 * 1000;
+                this.activityEvents = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart', 'touchmove'];
+                this.isIdle = false;
+                this.setupEventListeners();
+                this.startIdleCheck();
+            }
+
+            getCookie(name) {
+                let cookieValue = null;
+                if (document.cookie && document.cookie !== '') {
+                    const cookies = document.cookie.split(';');
+                    for (let i = 0; i < cookies.length; i++) {
+                        const cookie = cookies[i].trim();
+                        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                            break;
+                        }
+                    }
+                }
+                return cookieValue;
+            }
+
+            async makeRequest(url, method = 'POST', body = null) {
+                try {
+                    const response = await fetch(url, {
+                        method: method,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': this.getCookie('csrftoken')
+                        },
+                        body: body ? JSON.stringify(body) : null
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    return await response.json();
+                } catch (error) {
+                    console.error(`Error making request to ${url}:`, error);
+                    throw error;
+                }
+            }
+
+            async updateServerActivity() {
+                try {
+                    const data = await this.makeRequest('/update-last-activity/', 'POST', {
+                        timestamp: new Date().toISOString()
+                    });
+
+                    if (data.status === 'success') {
+                        console.log('Activity updated successfully');
+                    }
+                } catch (error) {
+                    console.error('Failed to update activity:', error);
+                }
+            }
+
+            async handleLogout() {
+                try {
+                    // First try to end the session properly
+                    await this.makeRequest('/end-session/', 'POST');
+                    console.log('Session ended successfully');
+                } catch (error) {
+                    console.error('Error ending session:', error);
+                } finally {
+                    // Always proceed with logout
+                    window.location.href = '/logout/';
+                }
+            }
+
+            resetIdleTime() {
+                if (this.isIdle) {
+                    this.isIdle = false;
+                    this.updateServerActivity();
+                }
+                this.idleTime = 0;
+            }
+
+            setupEventListeners() {
+                // Activity events
+                this.activityEvents.forEach(event => {
+                    document.addEventListener(event, () => this.resetIdleTime());
+                });
+
+                // Visibility change
+                document.addEventListener('visibilitychange', () => {
+                    if (document.visibilityState === 'visible') {
+                        this.resetIdleTime();
+                    }
+                });
+
+                // Handle beforeunload event
+                window.addEventListener('beforeunload', async (event) => {
+                    // Try to update the server one last time
+                    await this.updateServerActivity();
+                });
+
+                // Add click handler to logout buttons/links
+                document.querySelectorAll('[data-action="logout"]').forEach(element => {
+                    element.addEventListener('click', async (e) => {
+                        e.preventDefault();
+                        await this.handleLogout();
+                    });
+                });
+            }
+
+            startIdleCheck() {
+                // Check idle time every second
+                setInterval(() => {
+                    this.idleTime += 1000;
+                    if (this.idleTime >= this.idleThreshold && !this.isIdle) {
+                        this.isIdle = true;
+                        console.log('User is idle');
+                        this.updateServerActivity();
+                    }
+                }, 1000);
+            }
+        }
+
+        // Initialize the session manager when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            window.sessionManager = new SessionManager(1); // 1 minute threshold
         });
     </script>
 </body>

@@ -31,8 +31,115 @@ import csv
 import openpyxl
 from datetime import datetime, timedelta
 
+'''------------------------------ TRACKING ------------------------'''
 
 
+@login_required
+@csrf_exempt
+def update_last_activity(request):
+    """
+    View to handle activity updates from the client.
+    Updates the user's last activity timestamp and tracks idle time.
+    """
+    if request.method == 'POST':
+        try:
+            # Get current user session
+            user_session = UserSession.objects.filter(
+                user=request.user,
+                session_key=request.session.session_key,
+                logout_time__isnull=True
+            ).last()
+
+            if not user_session:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'No active session found'
+                }, status=404)
+
+            current_time = timezone.now()
+            
+            # Calculate time since last activity
+            time_since_last_activity = current_time - user_session.last_activity
+            
+            # If more than 1 minute has passed, count it as idle time
+            if time_since_last_activity > timedelta(minutes=1):
+                user_session.idle_time += time_since_last_activity
+            
+            # Update last activity
+            user_session.last_activity = current_time
+            
+            # If working_hours is not set and we have both login and last activity
+            if user_session.working_hours is None and user_session.login_time:
+                user_session.working_hours = current_time - user_session.login_time
+
+            # Save only the modified fields
+            user_session.save(update_fields=['last_activity', 'idle_time', 'working_hours'])
+
+            return JsonResponse({
+                'status': 'success',
+                'last_activity': current_time.isoformat(),
+                'idle_time': str(user_session.idle_time),
+                'working_hours': str(user_session.working_hours) if user_session.working_hours else None
+            })
+
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': str(e)
+            }, status=400)
+
+    return JsonResponse({
+        'status': 'error',
+        'message': 'Invalid request method'
+    }, status=405)
+
+@login_required
+def end_session(request):
+    """
+    View to handle session end/logout.
+    Calculates final working hours and idle time.
+    """
+    try:
+        user_session = UserSession.objects.filter(
+            user=request.user,
+            session_key=request.session.session_key,
+            logout_time__isnull=True
+        ).last()
+
+        if user_session:
+            current_time = timezone.now()
+            
+            # Calculate final idle time
+            time_since_last_activity = current_time - user_session.last_activity
+            if time_since_last_activity > timedelta(minutes=1):
+                user_session.idle_time += time_since_last_activity
+            
+            # Set logout time
+            user_session.logout_time = current_time
+            
+            # Calculate total working hours
+            total_duration = current_time - user_session.login_time
+            user_session.working_hours = total_duration - user_session.idle_time
+            
+            user_session.save()
+
+            return JsonResponse({
+                'status': 'success',
+                'message': 'Session ended successfully',
+                'working_hours': str(user_session.working_hours),
+                'idle_time': str(user_session.idle_time)
+            })
+
+        return JsonResponse({
+            'status': 'error',
+            'message': 'No active session found'
+        }, status=404)
+
+    except Exception as e:
+        return JsonResponse({
+            'status': 'error',
+            'message': str(e)
+        }, status=400)
 
 ''' ------------------ ROLE-BASED CHECKS ------------------ '''
 

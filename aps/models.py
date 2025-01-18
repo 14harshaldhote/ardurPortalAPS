@@ -3,6 +3,10 @@ from django.contrib.auth.models import User, Group
 import pytz
 from django.db import models
 from django.utils.timezone import now
+from django.conf import settings
+from datetime import timedelta
+
+
 
 
 
@@ -32,73 +36,90 @@ class ClientProfile(models.Model):
     def __str__(self):
         return self.company_name
 '''------------------------- USERSESSION --------------------'''
-
-
 class UserSession(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     session_key = models.CharField(max_length=40, unique=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
     login_time = models.DateTimeField(default=timezone.now)
     logout_time = models.DateTimeField(null=True, blank=True)
     working_hours = models.DurationField(null=True, blank=True)
-    idle_time = models.DurationField(null=True, blank=True)
-    last_activity = models.DateTimeField(null=True, blank=True)
-
-
-    def get_login_time_in_ist(self):
-        if self.login_time:
-            return timezone.localtime(self.login_time)
-        return None
-
-    def get_logout_time_in_ist(self):
-        if self.logout_time:
-            return timezone.localtime(self.logout_time)
-        return None
+    idle_time = models.DurationField(default=timedelta(0))
+    last_activity = models.DateTimeField(default=timezone.now)
+    location = models.CharField(max_length=50, null=True, blank=True)
 
     def save(self, *args, **kwargs):
         print(f"Saving UserSession for user: {self.user.username}, session_key: {self.session_key}")
         
-        # Ensure login_time and logout_time are timezone-aware
-        if self.login_time and not timezone.is_aware(self.login_time):
-            self.login_time = timezone.make_aware(self.login_time, IST_TIMEZONE)
-        
-        if self.logout_time and not timezone.is_aware(self.logout_time):
-            self.logout_time = timezone.make_aware(self.logout_time, IST_TIMEZONE)
-        
+        current_time = timezone.now()
+
+        # If this is a new session, set last_activity to login_time
+        if not self.pk:
+            self.last_activity = self.login_time
+
+        # If session is logged out, calculate working hours and idle time
         if self.logout_time:
-            self.calculate_working_hours()
+            total_duration = self.logout_time - self.login_time
+            time_since_last_activity = self.logout_time - self.last_activity
 
-        if self.last_activity and self.logout_time:
-            self.calculate_idle_time()
+            # Calculate idle time if more than 1 minute has passed
+            if time_since_last_activity > timedelta(minutes=1):
+                self.idle_time = time_since_last_activity
+            
+            # Working hours: total session time minus idle time
+            self.working_hours = total_duration - self.idle_time
+        else:
+            # For ongoing sessions, calculate working hours
+            time_since_login = current_time - self.login_time
+            time_since_last_activity = current_time - self.last_activity
 
+            # If there was idle time (more than 1 minute), add it to idle_time
+            if time_since_last_activity > timedelta(minutes=1):
+                self.idle_time += time_since_last_activity
+
+            # Working hours is current time minus login time minus idle time
+            self.working_hours = time_since_login - self.idle_time
+
+        # Set the location (based on IP address)
+        self.location = self.determine_location()
+
+        # Call the superclass save method
         super().save(*args, **kwargs)
 
-    def calculate_working_hours(self):
-        print(f"Calculating working hours for session: {self.session_key}")
-        """Calculate working hours based on login_time and logout_time."""
-        if self.logout_time:
-            self.working_hours = self.logout_time - self.login_time
-
-    def calculate_idle_time(self):
-        print(f"Calculating idle time for session: {self.session_key}")
-        """Calculate idle time based on last_activity and logout_time."""
-        if self.last_activity and self.logout_time:
-            active_threshold = timezone.timedelta(minutes=5)
-            time_since_last_activity = self.logout_time - self.last_activity
-            if time_since_last_activity > active_threshold:
-                self.idle_time = time_since_last_activity - active_threshold
-            else:
-                self.idle_time = timezone.timedelta(0)
+    def determine_location(self):
+        """Determine if the user is working from home or office based on IP address."""
+        office_ips = ['203.0.113.0', '203.0.113.1', '203.0.113.2']  # Example office IPs
+        return 'Office' if self.ip_address in office_ips else 'Home'
 
     def update_activity(self):
-        print(f"Updating last activity for session: {self.session_key}")
-        """Update last_activity to the current time."""
-        self.last_activity = timezone.now()
-        self.save(update_fields=['last_activity'])
+        """Update the last activity timestamp and recalculate times."""
+        current_time = timezone.now()
+        time_since_last_activity = current_time - self.last_activity
+        
+        # If more than 1 minute has passed, add to idle time
+        if time_since_last_activity > timedelta(minutes=1):
+            self.idle_time += time_since_last_activity
+            
+        self.last_activity = current_time
+        self.working_hours = current_time - self.login_time - self.idle_time
+        self.save()
 
-    def is_online(self):
-        """Returns True if the user is online, else False"""
-        return self.logout_time is None
-
+    def end_session(self):
+        """Properly end the session with correct time calculations."""
+        current_time = timezone.now()
+        
+        # Calculate final idle time if needed
+        time_since_last_activity = current_time - self.last_activity
+        if time_since_last_activity > timedelta(minutes=1):
+            self.idle_time += time_since_last_activity
+            
+        self.logout_time = current_time
+        self.last_activity = current_time
+        
+        # Final working hours calculation
+        total_session_time = self.logout_time - self.login_time
+        self.working_hours = total_session_time - self.idle_time
+        
+        self.save()
 '''---------- ATTENDANCE AREA ----------'''
 
 from django.db import models

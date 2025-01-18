@@ -1,20 +1,22 @@
+# middleware.py
 from django.utils import timezone
-from django.contrib.auth.models import User
-from .models import UserSession
-import pytz
-
-IST_TIMEZONE = pytz.timezone('Asia/Kolkata')
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from datetime import timedelta
+from aps.models import UserSession
+import json
 
 class IdleTimeTrackingMiddleware:
-    """
-    Middleware to track idle time and auto-logout after 5 minutes of inactivity.
-    """
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
-        # If the user is authenticated and active
         if request.user.is_authenticated:
+            # Get client IP
+            x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+            ip_address = x_forwarded_for.split(',')[0] if x_forwarded_for else request.META.get('REMOTE_ADDR')
+
+            # Get or create user session
             user_session = UserSession.objects.filter(
                 user=request.user,
                 session_key=request.session.session_key,
@@ -22,14 +24,51 @@ class IdleTimeTrackingMiddleware:
             ).last()
 
             if user_session:
-                # Check if idle time has exceeded 5 minutes
-                idle_threshold = timezone.timedelta(minutes=5)
-                last_activity = user_session.last_activity or user_session.login_time
-                if timezone.now() - last_activity > idle_threshold:
-                    print(f"User {request.user.username} has been idle for more than 5 minutes. Logging out.")
-                    # Auto logout after idle time
-                    user_session.logout_time = timezone.now()
-                    user_session.save()
+                current_time = timezone.now()
+                
+                # Calculate idle time
+                idle_duration = current_time - user_session.last_activity
+                if idle_duration > timedelta(minutes=1):
+                    user_session.idle_time += idle_duration
+                
+                # Update session
+                if not request.path.startswith(('/static/', '/media/', '/update-last-activity/')):
+                    user_session.last_activity = current_time
+                    user_session.save(update_fields=['last_activity', 'idle_time'])
 
         response = self.get_response(request)
         return response
+
+@csrf_exempt
+def update_last_activity(request):
+    if request.method == 'POST' and request.user.is_authenticated:
+        try:
+            data = json.loads(request.body)
+            user_session = UserSession.objects.filter(
+                user=request.user,
+                session_key=request.session.session_key,
+                logout_time__isnull=True
+            ).last()
+
+            if user_session:
+                current_time = timezone.now()
+                # Calculate idle time since last activity
+                idle_duration = current_time - user_session.last_activity
+                if idle_duration > timedelta(minutes=1):
+                    user_session.idle_time += idle_duration
+                
+                user_session.last_activity = current_time
+                user_session.save(update_fields=['last_activity', 'idle_time'])
+                
+                return JsonResponse({
+                    'status': 'success',
+                    'last_activity': current_time.isoformat(),
+                    'idle_time': str(user_session.idle_time)
+                })
+
+            return JsonResponse({'status': 'error', 'message': 'No active session'}, status=404)
+
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+
+    return JsonResponse({'status': 'error', 'message': 'Invalid request'}, status=400)

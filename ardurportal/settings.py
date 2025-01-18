@@ -30,6 +30,9 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'aps.middleware.IdleTimeTrackingMiddleware',  # Add this line
 ]
 
 ROOT_URLCONF = 'ardurportal.urls'
@@ -87,11 +90,11 @@ AUTH_PASSWORD_VALIDATORS = [
 TIME_ZONE = 'Asia/Kolkata'
 USE_TZ = True
 
-STATIC_URL = 'static/'
-# Add this line to include the base static directory for your project
+STATIC_URL = '/static/'
 STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, 'static'),  # This tells Django to look in the 'static' folder in the project root
+    BASE_DIR / "static",  # To include global static files folder if needed
 ]
+
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
