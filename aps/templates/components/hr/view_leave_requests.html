@@ -4,17 +4,17 @@
 <div class="p-8 min-h-screen ">
 
     <!-- Title -->
-    <h1 class="text-4xl font-semibold text-gray-900 mb-6">Leave Management</h1>
-    
+    <h1 class="text-3xl font-thin text-gray-900 mb-8">Leave Management</h1>
+
     <!-- Filter Section -->
     <div class="flex gap-6 mb-8">
         <!-- Username Filter -->
         <div class="flex items-center gap-2">
             <label for="employee" class="text-sm font-medium text-gray-600">Employee</label>
-            <select id="employee" name="employee" class="px-4 py-2 rounded-lg border-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-500">
+            <select id="employee" name="employee" class="px-4 py-2 rounded-lg border-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-500 transition-all">
                 <option value="">All Employees</option>
                 {% for leave in leave_requests %}
-                <option value="{{ leave.user.username }}">{{ leave.user.username }}</option>
+                    <option value="{{ leave.user.username }}">{{ leave.user.username }}</option>
                 {% endfor %}
             </select>
         </div>
@@ -22,7 +22,7 @@
         <!-- Leave Type Filter -->
         <div class="flex items-center gap-2">
             <label for="leave_type" class="text-sm font-medium text-gray-600">Leave Type</label>
-            <select id="leave_type" name="leave_type" class="px-4 py-2 rounded-lg border-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-500">
+            <select id="leave_type" name="leave_type" class="px-4 py-2 rounded-lg border-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-500 transition-all">
                 <option value="">All Types</option>
                 <option value="Sick Leave">Sick Leave</option>
                 <option value="Casual Leave">Casual Leave</option>
@@ -31,19 +31,19 @@
             </select>
         </div>
     </div>
-    
+
     <!-- Tab Navigation -->
-    <div class="mb-8 border-b border-gray-300">
+    <div class="mb-6 border-b-2 border-gray-300">
         <ul class="flex -mb-px">
             <li class="mr-6">
                 <button onclick="showTab('pending')" 
-                        class="tab-btn active px-6 py-3 font-medium text-gray-700 hover:text-gray-900 transition duration-300 ease-in-out border-b-2 border-transparent hover:border-yellow-500">
+                        class="tab-btn active px-6 py-3 font-medium text-gray-700 hover:text-gray-900 transition-all ease-in-out border-b-2 border-transparent hover:border-yellow-500 focus:outline-none">
                     Pending Requests
                 </button>
             </li>
             <li class="mr-6">
                 <button onclick="showTab('history')" 
-                        class="tab-btn px-6 py-3 font-medium text-gray-500 hover:text-gray-700 transition duration-300 ease-in-out border-b-2 border-transparent hover:border-yellow-500">
+                        class="tab-btn px-6 py-3 font-medium text-gray-500 hover:text-gray-700 transition-all ease-in-out border-b-2 border-transparent hover:border-yellow-500 focus:outline-none">
                     History
                 </button>
             </li>
@@ -55,7 +55,7 @@
         <div class="grid gap-6">
             {% for leave in leave_requests %}
             {% if leave.status == 'Pending' %}
-            <div class="bg-white rounded-lg shadow-md p-6 flex items-center justify-between transition transform hover:scale-105 hover:shadow-xl">
+            <div class="bg-white rounded-lg shadow-md p-6 flex items-center justify-between transition-all transform hover:scale-105 hover:shadow-xl">
                 <div class="flex-1 grid grid-cols-4 gap-6">
                     <div>
                         <p class="text-sm text-gray-500">Employee</p>
@@ -78,11 +78,11 @@
                 </div>
                 <div class="flex gap-4">
                     <a href="{% url 'aps_hr:manage_leave_hr' leave.id 'approve' %}" 
-                       class="bg-green-500 text-white px-5 py-2 rounded-lg hover:bg-green-600 transition duration-200">
+                       class="bg-green-500 text-white px-5 py-2 rounded-lg hover:bg-green-600 transition-all duration-200 focus:outline-none">
                         Approve
                     </a>
                     <a href="{% url 'aps_hr:manage_leave_hr' leave.id 'reject' %}"
-                       class="bg-red-500 text-white px-5 py-2 rounded-lg hover:bg-red-600 transition duration-200">
+                       class="bg-red-500 text-white px-5 py-2 rounded-lg hover:bg-red-600 transition-all duration-200 focus:outline-none">
                         Reject
                     </a>
                 </div>
@@ -97,7 +97,7 @@
         <div class="grid gap-6">
             {% for leave in leave_requests %}
             {% if leave.status != 'Pending' %}
-            <div class="bg-white rounded-lg shadow-md p-6 grid grid-cols-5 gap-2 transition transform hover:scale-105 hover:shadow-xl">
+            <div class="bg-white rounded-lg shadow-md p-6 grid grid-cols-5 gap-6 transition-all transform hover:scale-105 hover:shadow-xl">
                 <div>
                     <p class="text-sm text-gray-500">Employee</p>
                     <p class="font-medium text-gray-800">{{ leave.user.username }}</p>

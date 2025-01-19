@@ -213,9 +213,8 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
             {% if is_admin or is_manager %}
             {% include 'card/team_update_card.html' %}
-            {% include 'card/project_timeline_card.html' %}
+            {% include 'card/global_update_card.html' %}
             {% elif is_hr %}
-
             {% include 'card/global_update_card.html' %}
             {% elif is_employee %}
             {% include 'card/team_update_card.html' %}
@@ -226,10 +225,7 @@
             {% endif %}
         </div>
     </div>
-    {% if is_hr %}
-    {% include 'card/global_update_crud.html' %}
-
-    {% endif %}
+   
 </div>
 
 <!-- CSS for buttons -->

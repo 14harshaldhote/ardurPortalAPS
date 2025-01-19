@@ -1,10 +1,12 @@
 from django.contrib.auth.signals import user_logged_in, user_logged_out
 from django.dispatch import receiver
 from django.utils import timezone
-from .models import UserSession, Attendance
 from datetime import datetime, time
+from .models import UserSession, Attendance
 
+from datetime import timedelta
 
+# Signal handlers
 @receiver(user_logged_in)
 def track_login_time(sender, request, user, **kwargs):
     try:
@@ -12,61 +14,37 @@ def track_login_time(sender, request, user, **kwargs):
         if not session_key:
             request.session.save()
             session_key = request.session.session_key
-
+        
         local_now = timezone.now()
-        print(f"Login time for {user.username}: {local_now}")
-
-        # Create UserSession
-        UserSession.objects.create(
+        
+        # Create UserSession for login
+        user_session = UserSession.objects.create(
             user=user,
             session_key=session_key,
-            login_time=local_now
+            login_time=local_now,
+            location=request.session.get('location', 'Office')  # Default to Office if not specified
         )
-        print(f"Created new session for user: {user.username}, session key: {session_key}, login time: {local_now}")
 
-        # Handle attendance
+        # Get or create attendance record
         today = local_now.date()
         attendance, created = Attendance.objects.get_or_create(
             user=user,
-            date=today,
-            defaults={
-                'status': 'Present',
-                'clock_in_time': local_now
-            }
+            date=today
         )
-
-        if created:
-            print(f"Created new attendance record for user: {user.username}")
-            print(f"Date: {today}")
-            print(f"Clock-in time: {local_now}")
-            print(f"Status: {attendance.status}")
-        elif not attendance.clock_in_time:
-            attendance.status = 'Present'
-            attendance.clock_in_time = local_now
-            attendance.save()
-            print(f"Updated existing attendance record for user: {user.username}")
-            print(f"Date: {today}")
-            print(f"Updated clock-in time: {local_now}")
-            print(f"Updated status: {attendance.status}")
-        else:
-            print(f"Existing attendance record found for user: {user.username}")
-            print(f"Date: {today}")
-            print(f"Existing clock-in time: {attendance.clock_in_time}")
-            print(f"Current status: {attendance.status}")
-
+        
+        # Calculate attendance will handle the status
+        attendance.save()
+        
+        print(f"Login tracked for {user.username} on {today}")
     except Exception as e:
         print(f"Error in track_login_time: {str(e)}")
-
-from django.utils import timezone
-from datetime import datetime, time
 
 @receiver(user_logged_out)
 def track_logout_time(sender, request, user, **kwargs):
     try:
         session_key = request.session.session_key
         local_now = timezone.now()
-        print(f"Logout time for {user.username}: {local_now}")
-
+        
         # Update UserSession
         if session_key:
             user_session = UserSession.objects.filter(
@@ -74,47 +52,21 @@ def track_logout_time(sender, request, user, **kwargs):
                 session_key=session_key,
                 logout_time__isnull=True
             ).first()
-
+            
             if user_session:
                 user_session.logout_time = local_now
                 user_session.save()
-                print(f"Updated session for user: {user.username}")
-                print(f"Session key: {session_key}")
-                print(f"Login time: {user_session.login_time}")
-                print(f"Logout time: {local_now}")
-
+        
         # Update Attendance
         today = local_now.date()
         attendance = Attendance.objects.filter(
             user=user,
-            date=today,
-            status='Present'  # Only update if already marked Present
+            date=today
         ).first()
-
-        if attendance and attendance.clock_in_time:
-            # Ensure both clock_in_time and clock_out_time are datetime objects
-            if isinstance(attendance.clock_in_time, time):
-                # Combine the date and time to create a full datetime object
-                clock_in_time = datetime.combine(today, attendance.clock_in_time)
-                # Make it timezone-aware
-                clock_in_time = timezone.make_aware(clock_in_time, timezone.get_current_timezone())
-            else:
-                clock_in_time = attendance.clock_in_time
-
-            # Now calculate the total hours worked
-            previous_time = attendance.total_hours if attendance.total_hours else "No previous hours"
-            attendance.clock_out_time = local_now
-            attendance.total_hours = timezone.timedelta(
-                seconds=(local_now - clock_in_time).total_seconds()
-            )
-            attendance.save()
-            print(f"Updated attendance record for user: {user.username}")
-            print(f"Date: {today}")
-            print(f"Clock-in time: {clock_in_time}")
-            print(f"Clock-out time: {local_now}")
-            print(f"Previous total hours: {previous_time}")
-            print(f"New total hours: {attendance.total_hours}")
-            print(f"Status: {attendance.status}")
-
+        
+        if attendance:
+            attendance.save()  # This will trigger calculate_attendance()
+            
+        print(f"Logout tracked for {user.username} on {today}")
     except Exception as e:
         print(f"Error in track_logout_time: {str(e)}")

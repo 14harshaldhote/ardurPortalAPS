@@ -5,7 +5,7 @@ from django.db import models
 from django.utils.timezone import now
 from django.conf import settings
 from datetime import timedelta
-
+from django.dispatch import receiver
 
 
 
@@ -48,7 +48,6 @@ class UserSession(models.Model):
     location = models.CharField(max_length=50, null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        print(f"Saving UserSession for user: {self.user.username}, session_key: {self.session_key}")
         
         current_time = timezone.now()
 
@@ -237,13 +236,17 @@ class Leave(models.Model):
         return balance['available_leave'] >= requested_days
 
 
+from datetime import timedelta
+from django.utils import timezone
+
 class Attendance(models.Model):
     STATUS_CHOICES = [
         ('Present', 'Present'),
-        ('Absent', 'Absent'), 
+        ('Absent', 'Absent'),
         ('Pending', 'Pending'),
         ('On Leave', 'On Leave'),
         ('Work From Home', 'Work From Home'),
+        ('Weekend', 'Weekend'),  # Added new status for weekends
     ]
 
     user = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -253,7 +256,7 @@ class Attendance(models.Model):
     clock_out_time = models.TimeField(null=True, blank=True)
     total_hours = models.DurationField(null=True, blank=True)
     leave_request = models.ForeignKey(
-        'Leave', on_delete=models.SET_NULL, null=True, blank=True, 
+        'Leave', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='attendances'
     )
 
@@ -261,19 +264,23 @@ class Attendance(models.Model):
         print(f"Calculating attendance for user: {self.user.username}, date: {self.date}")
 
         try:
-            # If the status is 'On Leave', don't calculate clock-in/out
-            if self.status == 'On Leave':
+            # Check if it's weekend (Saturday or Sunday)
+            if self.date.weekday() >= 5:  # 5 is Saturday, 6 is Sunday
+                self.status = 'Weekend'
                 self.clock_in_time = None
                 self.clock_out_time = None
                 self.total_hours = None
                 return
 
-            # If we already have clock-in time and it's not from a session calculation
-            if self.clock_in_time and self.status == 'Present':
-                print(f"Using existing clock-in time for {self.user.username}")
+            # Check for leave request first
+            if self.leave_request:
+                self.status = 'On Leave'
+                self.clock_in_time = None
+                self.clock_out_time = None
+                self.total_hours = timedelta(seconds=0)
                 return
 
-            # Get UserSessions for the user on the given date
+            # Get all UserSessions for the user on the given date
             user_sessions = UserSession.objects.filter(
                 user=self.user,
                 login_time__date=self.date
@@ -282,56 +289,50 @@ class Attendance(models.Model):
             print(f"Found {user_sessions.count()} session(s) for user {self.user.username} on {self.date}")
 
             if user_sessions.exists():
+                total_worked_seconds = 0
                 first_session = user_sessions.first()
                 last_session = user_sessions.last()
 
-                # Only update if we don't already have clock-in time
-                if not self.clock_in_time and first_session.login_time:
-                    self.clock_in_time = first_session.login_time
-                    self.status = 'Present'
+                # Calculate total working hours only for completed sessions
+                for session in user_sessions:
+                    if session.logout_time:
+                        total_worked_seconds += (session.logout_time - session.login_time).total_seconds()
 
-                # Update clock-out and total hours if we have a logout time
+                # Set clock_in_time from first session
+                self.clock_in_time = first_session.login_time.time()
+                
+                # Set clock_out_time from last session if it has logged out
                 if last_session.logout_time:
-                    self.clock_out_time = last_session.logout_time
-                    if self.clock_in_time:
-                        self.total_hours = last_session.logout_time - self.clock_in_time
+                    self.clock_out_time = last_session.logout_time.time()
+                
+                self.total_hours = timedelta(seconds=total_worked_seconds)
 
-            # Set status to 'Absent' if no sessions are found
-            if not user_sessions.exists() and self.status != 'On Leave':
-                self.status = 'Absent'
-                if not self.clock_in_time:  # Only clear if not manually set
-                    self.clock_in_time = None
-                    self.clock_out_time = None
-                    self.total_hours = None
+                # Determine status based on session location
+                if any(session.location == 'Home' for session in user_sessions):
+                    self.status = 'Work From Home'
+                else:
+                    self.status = 'Present'
+            else:
+                # Only mark as absent if it's a working day and no leave request
+                if not self.leave_request and self.date < timezone.now().date():
+                    self.status = 'Absent'
+                else:
+                    self.status = 'Pending'
+                self.clock_in_time = None
+                self.clock_out_time = None
+                self.total_hours = None
 
         except Exception as e:
             print(f"Error calculating attendance: {e}")
-            if self.status != 'Present':  # Don't override if already Present
-                self.status = 'Pending'
+            self.status = 'Pending'
 
     def save(self, *args, **kwargs):
         print(f"Saving attendance for user: {self.user.username}, date: {self.date}")
-        
-        # Check if no sessions are found for the user on the given date
-        user_sessions = UserSession.objects.filter(user=self.user, login_time__date=self.date)
-        
-        # If no sessions are found, mark as 'Absent' and clear times
-        if not user_sessions.exists():
-            print(f"No sessions found for user {self.user.username} on {self.date}. Marking as Absent.")
-            self.status = 'Absent'
-            self.clock_in_time = None
-            self.clock_out_time = None
-            self.total_hours = None
-        
-        # Call the calculate_attendance method to update based on session data
         self.calculate_attendance()
-        
-        # Save the instance with the updated data
         super().save(*args, **kwargs)
-        
         print(f"Attendance saved for user: {self.user.username}, date: {self.date}, "
-            f"status: {self.status}, clock-in: {self.clock_in_time}, "
-            f"clock-out: {self.clock_out_time}, total hours: {self.total_hours}")
+              f"status: {self.status}, clock-in: {self.clock_in_time}, "
+              f"clock-out: {self.clock_out_time}, total hours: {self.total_hours}")
 
 '''-------------------------------------------- SUPPORT AREA ---------------------------------------'''
 import uuid
@@ -627,11 +628,10 @@ class UserComplaint(models.Model):
 
 ''' ------------------------------------------------- TIMESHEET AREA --------------------------------------------------- '''
 
-
 class Timesheet(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='timesheets')
     week_start_date = models.DateField()
-    project_name = models.CharField(max_length=255)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='timesheets')  # Linked to Project
     task_name = models.CharField(max_length=255)
     hours = models.FloatField()
     approval_status = models.CharField(
@@ -644,11 +644,24 @@ class Timesheet(models.Model):
     reviewed_at = models.DateTimeField(null=True, blank=True)  # Tracks when the timesheet was reviewed
 
     def __str__(self):
-        return f"Timesheet for {self.project_name} - {self.week_start_date}"
+        return f"Timesheet for {self.project.name} - {self.week_start_date}"
 
     class Meta:
-        unique_together = ('user', 'week_start_date', 'project_name', 'task_name')
+        unique_together = ('user', 'week_start_date', 'project', 'task_name')  # Prevent duplicates
         ordering = ['-week_start_date']
+# Signal to update 'reviewed_at' field when approval status changes
+
+from django.db.models.signals import pre_save
+from django.dispatch import receiver
+@receiver(pre_save, sender=Timesheet)
+def update_reviewed_at(sender, instance, **kwargs):
+    if instance.pk:
+        try:
+            old_instance = Timesheet.objects.get(pk=instance.pk)
+            if old_instance.approval_status != instance.approval_status:
+                instance.reviewed_at = timezone.now()
+        except Timesheet.DoesNotExist:
+            pass
 
 
 '''------------------------------------------------ CHAT AREA ---------------------------------------'''
@@ -697,3 +710,128 @@ class GlobalUpdate(models.Model):
         permissions = [
             ("manage_globalupdate", "Can manage Global Updates"),
         ]
+
+
+'''------------------------------- BREAK MODULE --------------------------'''
+from datetime import timedelta
+from django.db import models
+from django.contrib.auth.models import User
+from django.utils.timezone import now
+from django.core.exceptions import ValidationError
+
+from django.db import models
+from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
+from django.utils.timezone import now
+from datetime import timedelta
+class Break(models.Model):
+    BREAK_TYPES = [
+        ('Tea Break (10 mins)', 'Tea Break (10 mins)'),
+        ('Lunch/Dinner Break (30 mins)', 'Lunch/Dinner Break (30 mins)'),
+        ('Tea Break (15 mins)', 'Extended Tea Break (15 mins)'),
+    ]
+    
+    BREAK_DURATIONS = {
+        'Tea Break (10 mins)': timedelta(minutes=10),
+        'Lunch/Dinner Break (30 mins)': timedelta(minutes=30),
+        'Tea Break (15 mins)': timedelta(minutes=15),
+    }
+    
+    DAILY_BREAK_LIMITS = {
+        'Tea Break (10 mins)': 1,
+        'Lunch/Dinner Break (30 mins)': 1,
+        'Tea Break (15 mins)': 1,
+    }
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    break_type = models.CharField(max_length=50, choices=BREAK_TYPES)
+    start_time = models.DateTimeField(auto_now_add=True)
+    end_time = models.DateTimeField(null=True, blank=True)
+    reason_for_extension = models.TextField(null=True, blank=True)
+    
+    class Meta:
+        verbose_name = "Break"
+        verbose_name_plural = "Breaks"
+        ordering = ['-start_time']
+
+    def get_breaks_taken_today(self):
+        """Get the number of breaks taken today by type."""
+        today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = today_start + timedelta(days=1)
+        
+        return Break.objects.filter(
+            user=self.user,
+            break_type=self.break_type,
+            start_time__range=(today_start, today_end)
+        ).count()
+
+    def clean(self):
+        """Enhanced validation to check for daily break limits and active breaks."""
+        super().clean()
+        
+        # Check for active breaks
+        if not self.end_time:  # Only check for new breaks
+            active_breaks = Break.objects.filter(
+                user=self.user, 
+                end_time__isnull=True
+            ).exclude(pk=self.pk)
+            
+            if active_breaks.exists():
+                raise ValidationError("You already have an active break.")
+            
+            # Check daily limit for this break type
+            breaks_taken = self.get_breaks_taken_today()
+            allowed_breaks = self.DAILY_BREAK_LIMITS.get(self.break_type, 1)
+            
+            if breaks_taken >= allowed_breaks:
+                break_type_display = dict(self.BREAK_TYPES)[self.break_type]
+                raise ValidationError(
+                    f"You have already taken your allowed {break_type_display} for today. "
+                    f"Limit: {allowed_breaks} per day."
+                )
+
+    @property
+    def is_active(self):
+        """Check if the break is currently active."""
+        if self.end_time is None:
+            start_time_aware = timezone.localtime(self.start_time)
+            max_duration = self.BREAK_DURATIONS.get(self.break_type, timedelta())
+            return timezone.now() - start_time_aware <= max_duration
+        return False
+
+    def end_break(self, reason=None):
+        """End the break and record reason if provided."""
+        if not self.is_active:
+            raise ValidationError("This break has already ended.")
+        
+        self.end_time = timezone.now()
+        if reason:
+            self.reason_for_extension = reason
+        self.save()
+
+    @classmethod
+    def get_available_breaks(cls, user):
+        """Get list of break types still available today for the user."""
+        today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = today_start + timedelta(days=1)
+        
+        taken_breaks = Break.objects.filter(
+            user=user,
+            start_time__range=(today_start, today_end)
+        ).values_list('break_type', flat=True)
+        
+        # Count breaks taken today by type
+        break_counts = {}
+        for break_type in taken_breaks:
+            break_counts[break_type] = break_counts.get(break_type, 0) + 1
+        
+        # Filter available breaks based on limits
+        available_breaks = []
+        for break_type, limit in cls.DAILY_BREAK_LIMITS.items():
+            if break_counts.get(break_type, 0) < limit:
+                available_breaks.append(break_type)
+        
+        return available_breaks
+
+    def __str__(self):
+        return f"{self.user.username} - {self.break_type} ({'Active' if self.is_active else 'Ended'})"

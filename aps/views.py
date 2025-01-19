@@ -281,6 +281,99 @@ def set_password_view(request, username):
 from django.shortcuts import render
 from .models import Attendance
 
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404
+from .models import Break
+from django.utils.timezone import now
+from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth.decorators import login_required
+
+@login_required
+def check_active_break(request):
+    """
+    Check if the authenticated user has an active break.
+    """
+    print(f"Checking active break for user: {request.user.username}")
+    active_break = Break.objects.filter(user=request.user, end_time__isnull=True).first()
+    if active_break and active_break.is_active:
+        print(f"Active break found: {active_break}")
+        return JsonResponse({
+            'status': 'success',
+            'break_id': active_break.id,
+            'break_type': active_break.break_type,
+            'start_time': active_break.start_time,
+            'is_active': active_break.is_active
+        })
+    else:
+        print("No active break found")
+        return JsonResponse({'status': 'error', 'message': 'No active break found'})
+
+def take_break(request):
+    if request.method == 'POST':
+        break_type = request.POST.get('break_type')
+
+        # Ensure valid break type
+        if not break_type or break_type not in dict(Break.BREAK_TYPES).keys():
+            messages.error(request, "Invalid break type.")
+            return redirect('dashboard')
+
+        # Create new break
+        new_break = Break(user=request.user, break_type=break_type)
+        try:
+            # Run validation to check for active breaks and limits
+            new_break.clean()  # This will run all validations from the `clean` method
+            new_break.save()
+            messages.success(request, f"Started {break_type}")
+        except ValidationError as e:
+            messages.error(request, str(e))
+        
+        return redirect('dashboard')
+
+    # For GET requests, show available breaks
+    available_breaks = Break.get_available_breaks(request.user)
+    context = {
+        'available_breaks': available_breaks,
+        'break_durations': Break.BREAK_DURATIONS
+    }
+    return render(request, 'breaks/take_break.html', context)
+
+from django.urls import reverse
+
+
+@login_required
+def end_break(request, break_id):
+    if request.method == 'POST':
+        try:
+            print(f"Ending break with ID: {break_id} for user: {request.user.username}")
+            active_break = get_object_or_404(Break, id=break_id, user=request.user, end_time__isnull=True)
+            
+            max_duration = Break.BREAK_DURATIONS.get(active_break.break_type, timedelta(minutes=15))
+            # Use timezone.now() for consistent timezone-aware datetime
+            elapsed_time = timezone.now() - active_break.start_time
+            
+            if elapsed_time > max_duration and not request.POST.get('reason'):
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Please provide a reason for the extended break.'
+                })
+            
+            reason = request.POST.get('reason', '')
+            # Use timezone.now() when setting end_time
+            active_break.end_time = timezone.now()
+            active_break.reason_for_extension = reason
+            active_break.save()
+            print(f"Break ended with reason: {reason}")
+            
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({'status': 'success'})
+            
+            return redirect(f"{reverse('dashboard')}?success=Break ended successfully")
+            
+        except Exception as e:
+            return redirect(f"{reverse('dashboard')}?error={str(e)}")
+    
+    return redirect(f"{reverse('dashboard')}?error=Invalid request method")
+
 # Function to get attendance stats
 def get_attendance_stats(user):
     # Calculate total days, present days, and absent days
@@ -302,13 +395,10 @@ def get_attendance_stats(user):
         'total_absent': absent_days,
         'change_display': abs(attendance_change) if attendance_change < 0 else attendance_change
     }
-
+from django.utils import timezone
 
 @login_required
 def dashboard_view(request):
-    from datetime import datetime, timedelta
-    from django.utils.timezone import now
-
     user = request.user
 
     # Check if the user has the HR role
@@ -317,21 +407,43 @@ def dashboard_view(request):
     # Variables for attendance stats and active projects
     present_employees = absent_employees = active_projects = None
 
-    # Get today's date
-    today = now().date()
+    # Get today's date using timezone-aware datetime
+    today = timezone.now().date()
 
     # Get date range from request (default to today if not provided)
-    start_date = request.GET.get('start_date', today)
-    end_date = request.GET.get('end_date', today)
+    start_date_str = request.GET.get('start_date', today)
+    end_date_str = request.GET.get('end_date', today)
 
-    # Parse date range if provided as strings
-    if isinstance(start_date, str):
-        start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
-    if isinstance(end_date, str):
-        end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+    # Convert string date inputs to date format
+    try:
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date() if isinstance(start_date_str, str) else today
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date() if isinstance(end_date_str, str) else today
+    except ValueError:
+        return JsonResponse({'status': 'error', 'message': 'Invalid date format. Use YYYY-MM-DD.'})
 
     # Ensure the end date is inclusive
     end_date += timedelta(days=1)
+
+    # Check if the user has an active break
+    active_break = Break.objects.filter(user=user, end_time__isnull=True).first()
+    break_data = None
+    if active_break and active_break.is_active:
+        # Get break duration in minutes
+        break_duration = Break.BREAK_DURATIONS.get(active_break.break_type, timedelta(minutes=15))
+        
+        # Ensure both times are timezone-aware
+        now = timezone.now()
+        elapsed_time = now - active_break.start_time
+        remaining_time = max(timedelta(0), break_duration - elapsed_time)
+        
+        break_data = {
+            'break_id': active_break.id,
+            'break_type': active_break.break_type,
+            'start_time': active_break.start_time,
+            'active_break': active_break.is_active,
+            'remaining_minutes': int(remaining_time.total_seconds() / 60),
+            'remaining_seconds': int(remaining_time.total_seconds() % 60)
+        }
 
     if is_hr:
         # Get attendance stats
@@ -349,6 +461,12 @@ def dashboard_view(request):
     assignments = ProjectAssignment.objects.filter(user=user)
     projects = [assignment.project for assignment in assignments]
 
+    # Get project timelines for each project
+    project_timelines = []
+    for project in projects:
+        timeline = project_timeline(request, project.id)  # Returns a dictionary with project info
+        project_timelines.append(timeline['project']) 
+
     # Retrieve global updates
     updates = GlobalUpdate.objects.all().order_by('-created_at')
 
@@ -359,25 +477,51 @@ def dashboard_view(request):
 
     # Context for the dashboard view
     context = {
-        'attendance': get_attendance_stats(user),  # Function to fetch overall attendance stats for the user
+        'attendance': get_attendance_stats(user),
         'projects': projects,
+        'project_timelines': project_timelines,
         'updates': updates,
         'is_hr': is_hr,
         'update': update,
         'present_employees': present_employees,
         'absent_employees': absent_employees,
-        'active_projects': active_projects,  # Pass active projects for HR
+        'active_projects': active_projects,
         'start_date': start_date,
-        'end_date': end_date - timedelta(days=1),  # Exclude added day
+        'end_date': end_date - timedelta(days=1),
         'show_employee_directory': is_hr,
+        'break_data': break_data,
+        'break_types': dict(Break.BREAK_TYPES),
+        'break_durations': {k: int(v.total_seconds() / 60) for k, v in Break.BREAK_DURATIONS.items()}
     }
 
     return render(request, 'dashboard.html', context)
 
 
+
+def project_timeline(request, project_id):
+    project = Project.objects.get(id=project_id)
+    current_date = timezone.now().date()
+    
+    # Calculate total project duration and remaining time
+    total_duration = project.deadline - project.start_date
+    remaining_duration = project.deadline - current_date
+    
+    # Check if remaining time is within the last 25% of the total duration
+    is_deadline_close = remaining_duration <= total_duration * 0.25
+
+    
+    return {
+        'project': {
+            'name': project.name,
+            'start_date': project.start_date,
+            'deadline': project.deadline,  # No need to include 'deadline' twice
+            'is_deadline_close': is_deadline_close,
+        }
+    }
+
+
+
 from django.utils.timezone import now, timezone
-
-
 
 @user_passes_test(is_hr)
 @login_required
@@ -1049,9 +1193,6 @@ def change_password(request):
 # Attendance View
 
 ''' ---------------------------------------- TIMESHEET AREA ---------------------------------------- '''
-
-
-
 @login_required
 @user_passes_test(is_employee)  # Only allow employees to access this view
 def timesheet_view(request):
@@ -1070,14 +1211,28 @@ def timesheet_view(request):
 
             # Create the Timesheet objects and save them to the database
             for project_name, task_name, hour in zip(project_names, task_names, hours):
-                timesheet = Timesheet(
+                # Check if the timesheet for the same user, week, project, and task already exists
+                existing_timesheet = Timesheet.objects.filter(
                     user=request.user,
                     week_start_date=week_start_date,
-                    project_name=project_name,
-                    task_name=task_name,
-                    hours=float(hour)
-                )
-                timesheet.save()
+                    project__name=project_name,  # Changed to filter by project name
+                    task_name=task_name
+                ).first()
+
+                if existing_timesheet:
+                    existing_timesheet.hours += float(hour)  # Update hours if already exists
+                    existing_timesheet.save()
+                else:
+                    # Fetch project using the name
+                    project = Project.objects.get(name=project_name)
+                    timesheet = Timesheet(
+                        user=request.user,
+                        week_start_date=week_start_date,
+                        project=project,  # Set project using name
+                        task_name=task_name,
+                        hours=float(hour)
+                    )
+                    timesheet.save()
 
             # Display success message
             messages.success(request, "Timesheet submitted successfully!")
@@ -1086,7 +1241,7 @@ def timesheet_view(request):
         except Exception as e:
             # If an error occurs, show an error message
             messages.error(request, f"An error occurred: {e}")
-            return redirect('aps:timesheet')
+            return redirect('aps_employee:timesheet')
 
     else:
         # If it's a GET request, show the current timesheet history
@@ -1095,36 +1250,146 @@ def timesheet_view(request):
         # Fetch the timesheet history for the logged-in employee, ordered by week start date
         timesheet_history = Timesheet.objects.filter(user=request.user).order_by('-week_start_date')
 
+        # Fetch the list of projects the user is assigned to using the ProjectAssignment model
+        assigned_projects = Project.objects.filter(projectassignment__user=request.user, projectassignment__is_active=True)
+
         # Render the timesheet page with the data
-        return render(request, 'components/employee/timesheet.html', {'today': today, 'timesheet_history': timesheet_history})
+        return render(request, 'components/employee/timesheet.html', {
+            'today': today,
+            'timesheet_history': timesheet_history,
+            'assigned_projects': assigned_projects,  # Pass the list of assigned projects
+        })
+
+
+from django.shortcuts import render, redirect
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required, user_passes_test
+from .models import Timesheet
+from django.db.models import Sum, Count
+from django.utils import timezone
+
+from django.shortcuts import render, redirect
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.utils import timezone
+from .models import Timesheet
+from django.db.models import Sum
+from datetime import timedelta
+from django.http import JsonResponse
 
 @login_required
-@user_passes_test(is_manager)  # Only allow managers to access this view
+@user_passes_test(is_manager)
 def manager_view_timesheets(request):
-    # Check if the logged-in user is a Manager, otherwise redirect
-    if not request.user.groups.filter(name='Manager').exists():
-        messages.error(request, "You do not have permission to view this page.")
-        return redirect('aps:dashboard')
+    time_filter = request.GET.get('time-filter', '7')
+    search_query = request.GET.get('search', '')
+    filter_days = int(time_filter)
 
-    # Fetch all timesheets for managers to review, ordered by week start date (descending)
-    timesheets = Timesheet.objects.all().order_by('-week_start_date')
+    # Base queryset with prefetching for optimization
+    timesheets = Timesheet.objects.select_related('project', 'user').filter(
+        week_start_date__gte=timezone.now() - timedelta(days=filter_days)
+    )
 
-    # Calculate summary metrics:
-    total_hours = sum(ts.hours for ts in timesheets)  # Sum of all hours worked
-    active_projects = len(set(ts.project_name for ts in timesheets))  # Count of unique projects
-    completion_rate = 85  # Placeholder - implement actual calculation for completion rate
+    # Search filter
+    if search_query:
+        timesheets = timesheets.filter(
+            Q(user__first_name__icontains=search_query) |
+            Q(user__last_name__icontains=search_query) |
+            Q(project__name__icontains=search_query) |
+            Q(task_name__icontains=search_query)
+        )
 
-    # Context data passed to the template
+    # Ordering and pagination
+    timesheets = timesheets.order_by('-week_start_date', 'user__first_name')
+    paginator = Paginator(timesheets, 20)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    timesheets = timesheets.annotate(
+        user_total_hours=Sum('hours'),
+        user_pending_count=Count('id', filter=Q(approval_status='Pending'))
+    )
+
+    # Statistics calculation
+    total_hours = timesheets.aggregate(Sum('hours'))['hours__sum'] or 0
+    active_projects = timesheets.values('project').distinct().count()
+    completion_rate = calculate_completion_rate(timesheets)
+    pending_approvals = timesheets.filter(approval_status='Pending').count()
+
     context = {
-        'timesheets': timesheets,
+        'page_obj': page_obj,
         'total_hours': total_hours,
         'active_projects': active_projects,
         'completion_rate': completion_rate,
+        'pending_approvals': pending_approvals,
+        'time_filter': time_filter,
+        'search_query': search_query,
     }
 
-    # Render the timesheets to the manager's view template
     return render(request, 'components/manager/view_timesheets.html', context)
 
+
+@login_required
+@user_passes_test(is_manager)
+def bulk_update_timesheet(request):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Invalid request method'}, status=405)
+
+    timesheet_ids = request.POST.getlist('selected_timesheets[]')
+    action = request.POST.get('action')
+
+    if not timesheet_ids:
+        messages.error(request, 'No timesheets selected.')
+        return redirect('aps_manager:view_timesheets')
+
+    if action not in ['approve', 'reject']:
+        messages.error(request, 'Invalid action.')
+        return redirect('aps_manager:view_timesheets')
+
+    status_map = {
+        'approve': 'Approved',
+        'reject': 'Rejected'
+    }
+
+    try:
+        managed_projects = ProjectAssignment.objects.filter(
+            user=request.user, role_in_project='Manager', is_active=True
+        ).values_list('project', flat=True)
+
+        # Restrict timesheets to manager's projects
+        timesheets = Timesheet.objects.filter(
+            id__in=timesheet_ids,
+            project_id__in=managed_projects
+        )
+
+        if not timesheets.exists():
+            messages.error(request, 'You are not authorized to update the selected timesheets.')
+            return redirect('aps_manager:view_timesheets')
+
+        # Update timesheets
+        update_count = timesheets.update(
+            approval_status=status_map[action],
+            reviewed_at=timezone.now()
+        )
+
+        messages.success(
+            request,
+            f'Successfully {action}d {update_count} timesheet{"s" if update_count != 1 else ""}.'
+        )
+    except Exception as e:
+        logger.error(f"Error processing timesheets: {e}")
+        messages.error(request, 'An unexpected error occurred while processing timesheets.')
+
+    return redirect('aps_manager:view_timesheets')
+
+
+def calculate_completion_rate(timesheets):
+    total_count = timesheets.count()
+    if total_count == 0:
+        return 0
+
+    approved_count = timesheets.filter(approval_status='Approved').count()
+    completion_rate = (approved_count / total_count) * 100
+    return round(completion_rate, 2)
 ''' ---------------------------------------- LEAVE AREA ---------------------------------------- '''
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -1835,129 +2100,6 @@ def update_hours(request, project_id):
         logger.error(f"Error updating hours: {str(e)}")
         return JsonResponse({'status': 'error', 'message': 'Internal server error'}, status=500)
 
-# @login_required
-# @user_passes_test(is_admin)
-# def project_view(request, action=None, project_id=None):
-#     """View to manage projects."""
-
-#     managers = get_users_from_group("Manager")
-#     employees = get_users_from_group("Employee")
-#     clients = get_users_from_group("Client")
-
-#     if action == "list":
-#         projects = Project.objects.all()
-#         return render(request, 'components/admin/project_view.html', {
-#             'projects': projects,
-#             'managers': managers,
-#             'employees': employees,
-#             'clients': clients,
-#         })
-
-#     elif action == "detail" and project_id:
-#         project = get_object_or_404(Project, id=project_id)
-#         assignments = ProjectAssignment.objects.filter(project=project)
-#         client_participation = ClientParticipation.objects.filter(project=project)
-#         clients_list = [client.client.username for client in client_participation]
-
-#         return render(request, 'components/admin/project_view.html', {
-#             'project': project,
-#             'assignments': assignments,
-#             'clients': clients_list,
-#             'project_id': project_id,
-#             'is_overdue': project.is_overdue() if hasattr(project, 'is_overdue') else False,
-#         })
-
-#     elif action == "create":
-#         if request.method == 'POST':
-#             try:
-#                 project = create_project(request)
-#                 messages.success(request, "Project created successfully!")
-#                 return redirect('aps_admin:project_detail', project_id=project.id)
-#             except Exception as e:
-#                 messages.error(request, f"Error creating project: {str(e)}")
-#                 return redirect('aps_admin:project_view', action="list")
-
-#         return render(request, 'components/admin/project_view.html', {
-#             'managers': managers,
-#             'employees': employees,
-#             'clients': clients,
-#             'project_id': None,
-#         })
-
-#     elif action == "update" and project_id:
-#         project = get_object_or_404(Project, id=project_id)
-#         status_choices = Project._meta.get_field('status').choices
-
-
-#         if request.method == 'POST':
-#             try:
-#                 update_project(request, project)
-#                 messages.success(request, "Project updated successfully!")
-#                 return redirect('aps_admin:project_detail', project_id=project.id)
-#             except Exception as e:
-#                 messages.error(request, f"Error updating project: {str(e)}")
-#                 return redirect('aps_admin:project_view', action="detail", project_id=project.id)
-
-#         assignments = ProjectAssignment.objects.filter(project=project)
-#         current_managers = [assignment.user.id for assignment in assignments.filter(role_in_project='Manager')]
-
-#         return render(request, 'components/admin/project_view.html', {
-#             'project': project,
-#             'managers': managers,
-#             'current_managers': current_managers,
-#             'employees': employees,
-#             'clients': clients,
-#             'project_id': project_id,
-#             'action': 'update',
-#             'status_choices': status_choices,  # Pass status choices
-
-#         })
-
-#     elif action == "delete" and project_id:
-#         project = get_object_or_404(Project, id=project_id)
-#         if request.method == 'POST':
-#             try:
-#                 project.delete()
-#                 messages.success(request, "Project deleted successfully!")
-#                 print("Project deletion successful")  # Debugging line
-#             except Exception as e:
-#                 messages.error(request, f"Error deleting project: {str(e)}")
-#             return redirect('aps_admin:projects_list')
-#         return render(request, 'components/admin/project_view.html', {
-#             'project': project,
-#             'project_id': project_id,
-#         })
-
-#     elif action == "assign" and project_id:
-#         project = get_object_or_404(Project, id=project_id)
-#         role_choices = ProjectAssignment._meta.get_field('role_in_project').choices
-
-
-#         if request.method == 'POST':
-#             try:
-#                 assign_users_to_project(request, project)
-#                 messages.success(request, "Users assigned successfully!")
-#                 return redirect('aps_admin:project_detail', project_id=project.id)
-#             except Exception as e:
-#                 messages.error(request, f"Error assigning users: {str(e)}")
-#                 return redirect('aps_admin:project_detail', project_id=project.id)
-
-#         manager = project.projectassignment_set.filter(role_in_project='Manager').first()
-
-#         return render(request, 'components/admin/project_view.html', {
-#             'project': project,
-#             'employees': employees,
-#             'clients': clients,
-#             'assignments': ProjectAssignment.objects.filter(project=project),
-#             'manager': manager,
-#             'project_id': project_id,
-#             'action': 'assign',  # Add this line to ensure 'assign' action is passed
-#             'role_choices': role_choices,  # Pass role choices
-
-#         })
-
-
-#     return redirect('aps_admin:project_list', action="list")
 
 
 def create_project(request):
@@ -2185,43 +2327,32 @@ def manager_project_view(request, action=None, project_id=None):
 # Views with optimized database queries
 import calendar
 
-
-
 @login_required
 def employee_attendance_view(request):
-    # Get the month and year from the request, fallback to the current month/year
     current_date = datetime.now()
     current_month = int(request.GET.get('month', current_date.month))
     current_year = int(request.GET.get('year', current_date.year))
     current_month_name = calendar.month_name[current_month]
     
-    # Get the previous and next month data
     prev_month = current_month - 1 if current_month > 1 else 12
     next_month = current_month + 1 if current_month < 12 else 1
     prev_year = current_year if current_month > 1 else current_year - 1
     next_year = current_year if current_month < 12 else current_year + 1
     
-    # Get the calendar for the current month
-    cal = calendar.Calendar(firstweekday=6)  # Start week on Sunday
+    cal = calendar.Calendar(firstweekday=6)  
     days_in_month = cal.monthdayscalendar(current_year, current_month)
     
-    # Fetch attendance and leave data
     user_attendance = Attendance.objects.filter(user=request.user, date__month=current_month, date__year=current_year)
     leaves = Leave.objects.filter(user=request.user, start_date__month=current_month, start_date__year=current_year)
     
-    # Attendance statistics
     total_present = user_attendance.filter(status='Present').count()
     total_absent = user_attendance.filter(status='Absent').count()
     total_leave = user_attendance.filter(status='On Leave').count()
     total_wfh = user_attendance.filter(status='Work From Home').count()
 
-    # Leave balance
     leave_balance = Leave.get_leave_balance(request.user)
-
-    # Calculate Loss of Pay for the month
     total_lop_days = Leave.calculate_lop_per_month(request.user, current_month, current_year)
 
-    # Prepare calendar data (mark leave days)
     calendar_data = []
     for week in days_in_month:
         week_data = []
@@ -2232,14 +2363,13 @@ def employee_attendance_view(request):
                 date = datetime(current_year, current_month, day)
                 leave_status = None
                 leave_type = None
+                clock_in = clock_out = total_hours = None
 
-                # Check if the day is a leave day
                 leave_on_day = leaves.filter(start_date__lte=date, end_date__gte=date, status='Approved').first()
                 if leave_on_day:
                     leave_status = 'On Leave'
                     leave_type = leave_on_day.leave_type
                 
-                # Check attendance for the day
                 attendance_on_day = user_attendance.filter(date=date).first()
                 if attendance_on_day:
                     leave_status = attendance_on_day.status
@@ -2261,7 +2391,6 @@ def employee_attendance_view(request):
                 })
         calendar_data.append(week_data)
 
-    # Pagination setup for attendance history
     paginator = Paginator(user_attendance, 10)
     page = request.GET.get('page')
     try:

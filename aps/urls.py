@@ -100,7 +100,10 @@ manager_patterns = [
 
     path('leave/requests/', views.view_leave_requests_hr, name='view_leave_requests_manager'),
     path('leave/<int:leave_id>/<str:action>/', views.manage_leave_request_manager, name='manage_leave_manager'),
-    path('view_timesheets/', views.manager_view_timesheets, name='view_timesheets'),  # View team timesheets for manager
+    path('view_timesheets/', views.manager_view_timesheets, name='view_timesheets'), 
+    path('bulk-update-timesheet/', views.bulk_update_timesheet, name='bulk_update_timesheet'),
+
+ # View team timesheets for manager
     path('assign_tasks/', views.assign_tasks, name='assign_tasks'),  # Manager assigns tasks to employees
     # Attendance-related URLs for Manager
     path('attendance/', views.manager_attendance_view, name='attendance'),  # Manager attendance view
@@ -119,8 +122,9 @@ urlpatterns = [
     path('update-last-activity/', views.update_last_activity, name='update_last_activity'),
     path('end-session/', views.end_session, name='end_session'),
 
-
-    
+    path('break/check/', views.check_active_break, name='check_active_break'),
+    path('break/take/', views.take_break, name='take_break'),
+    path('break/end/<int:break_id>/', views.end_break, name='end_break'),
     # Chat-related views
     path('chats/', views.chat_view, name='chat_view'),  # Chat view for users
     path('messages/<str:recipient_username>/', views.load_messages, name='load_messages'),  # Load messages for a specific user
@@ -141,3 +145,5 @@ urlpatterns = [
     # Manager-specific URLs under 'portal/manager/'
     path('portal/manager/', include((manager_patterns, 'aps'), namespace='aps_manager')),  # Manager-related URLs
 ]
+
+

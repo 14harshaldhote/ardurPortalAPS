@@ -83,12 +83,7 @@
 
         <!-- Manager Specific -->
         {% if is_manager %}
-        <li>
-            <a href="#"
-                class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
-                Assign Tasks
-            </a>
-        </li>
+        
         <li>
             <a href="{% url 'aps_manager:view_leave_requests_manager' %}"
                 class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
@@ -110,7 +105,7 @@
         <li>
             <a href="{% url 'aps_manager:view_timesheets' %}"
                 class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
-                View Timesheets
+                Employee Timesheets
             </a>
         </li>
         <li>
