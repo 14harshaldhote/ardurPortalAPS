@@ -4,7 +4,7 @@ from .models import (UserSession, Attendance, SystemError,
                     Support, FailedLoginAttempt, PasswordChange, 
                     RoleAssignmentAudit, FeatureUsage, SystemUsage, 
                     Timesheet,GlobalUpdate,
-                    Message, Chat,UserDetails)
+                    Message, Chat,UserDetails,ProjectUpdate)
 from django.db.models import Q
 from datetime import datetime, timedelta, date
 from django.utils import timezone
@@ -339,7 +339,6 @@ def take_break(request):
 
 from django.urls import reverse
 
-
 @login_required
 def end_break(request, break_id):
     if request.method == 'POST':
@@ -403,6 +402,7 @@ def dashboard_view(request):
 
     # Check if the user has the HR role
     is_hr = user.groups.filter(name='HR').exists()
+    is_manager = user.groups.filter(name='Manager').exists()
 
     # Variables for attendance stats and active projects
     present_employees = absent_employees = active_projects = None
@@ -470,6 +470,9 @@ def dashboard_view(request):
     # Retrieve global updates
     updates = GlobalUpdate.objects.all().order_by('-created_at')
 
+    # Retrieve project team updates
+    project_team_updates = ProjectUpdate.objects.all()
+
     # Check if we are editing an update
     update = None
     if 'update_id' in request.GET:
@@ -482,6 +485,8 @@ def dashboard_view(request):
         'project_timelines': project_timelines,
         'updates': updates,
         'is_hr': is_hr,
+        'is_manager': is_manager,
+        'projectTeamUpdates': project_team_updates,
         'update': update,
         'present_employees': present_employees,
         'absent_employees': absent_employees,
@@ -495,7 +500,6 @@ def dashboard_view(request):
     }
 
     return render(request, 'dashboard.html', context)
-
 
 
 def project_timeline(request, project_id):
@@ -663,7 +667,119 @@ def hr_delete_update(request, update_id):
         
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
-    
+
+
+''' ------------------------------------------------------- MANAGER TEAM PROJECT AREA --------------------------------------------------------- '''
+
+@login_required
+@user_passes_test(is_manager)
+@transaction.atomic
+def manager_create_project_update(request):
+    """Manager creates an update for their project."""
+    if request.method == 'POST':
+        project_id = request.POST.get('project_id')
+        title = request.POST.get('title')
+        description = request.POST.get('description')
+        status = request.POST.get('status', 'upcoming')
+        scheduled_date_str = request.POST.get('scheduled_date')
+
+        # Validate fields
+        if not title or not description or not project_id:
+            messages.error(request, "Title, description, and project are required.")
+            return redirect('dashboard')
+
+        try:
+            # Fetch the project assigned to the manager
+            project = get_object_or_404(Project, id=project_id)
+            project_assignment = ProjectAssignment.objects.filter(project=project, user=request.user, is_active=True).first()
+            if not project_assignment or project_assignment.role_in_project != 'Manager':
+                messages.error(request, "You are not assigned as the manager for this project.")
+                return redirect('dashboard')
+
+            # Handle scheduled date
+            scheduled_date = None
+            if scheduled_date_str:
+                scheduled_date = datetime.strptime(scheduled_date_str, '%Y-%m-%dT%H:%M')
+                scheduled_date = timezone.make_aware(scheduled_date)
+
+            # Create the project update
+            new_update = ProjectUpdate.objects.create(
+                project=project,
+                created_by=request.user,
+                title=title,
+                description=description,
+                status=status,
+                scheduled_date=scheduled_date
+            )
+
+            messages.success(request, "Project update created successfully.")
+            return redirect('dashboard')
+
+        except Exception as e:
+            messages.error(request, f"Error creating update: {str(e)}")
+            return redirect('dashboard')
+
+    return redirect('dashboard')
+
+@login_required
+@user_passes_test(is_manager)
+@transaction.atomic
+def manager_edit_project_update(request, update_id):
+    """Manager edits an existing project update."""
+    try:
+        update = get_object_or_404(ProjectUpdate, id=update_id)
+        if update.created_by != request.user:
+            messages.error(request, "You do not have permission to edit this update.")
+            return redirect('dashboard')
+
+        if request.method == 'POST':
+            title = request.POST.get('title')
+            description = request.POST.get('description')
+            status = request.POST.get('status', 'upcoming')
+            scheduled_date_str = request.POST.get('scheduled_date')
+
+            if not title or not description:
+                return JsonResponse({'error': 'Title and description are required'}, status=400)
+
+            scheduled_date = None
+            if scheduled_date_str:
+                try:
+                    scheduled_date = datetime.strptime(scheduled_date_str, '%Y-%m-%dT%H:%M')
+                    update.scheduled_date = timezone.make_aware(scheduled_date)
+                except ValueError:
+                    return JsonResponse({'error': 'Invalid date format'}, status=400)
+
+            update.title = title
+            update.description = description
+            update.status = status
+            update.save()
+
+            messages.success(request, "Project update edited successfully.")
+            return redirect('dashboard')  # Redirect to the dashboard after successful edit
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+    return JsonResponse({'error': 'Invalid request method'}, status=405)
+
+@login_required
+@user_passes_test(is_manager)
+@transaction.atomic
+def manager_delete_project_update(request, update_id):
+    """Manager deletes a project update."""
+    try:
+        update = get_object_or_404(ProjectUpdate, id=update_id)
+        if update.created_by != request.user:
+            messages.error(request, "You do not have permission to delete this update.")
+            return redirect('dashboard')
+
+        update.delete()
+        messages.success(request, "Project update deleted successfully.")
+        return redirect('dashboard')
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
 ''' --------------------------------------------------------- USER DETAILS AREA --------------------------------------------------------- '''
 
 # aps/views.py
@@ -1536,6 +1652,7 @@ def manage_leave_request_hr(request, leave_id, action):
 def view_leave_requests_manager(request):
     """HR views all leave requests."""
     leave_requests = Leave.objects.all()
+    print(f"Leave requests fetched: {leave_requests}")
     return render(request, 'components/manager/view_leave_requests.html', {'leave_requests': leave_requests})
 
 
@@ -1544,14 +1661,17 @@ def view_leave_requests_manager(request):
 def manage_leave_request_manager(request, leave_id, action):
     """HR approves or rejects leave requests."""
     leave_request = get_object_or_404(Leave, id=leave_id)
+    print(f"Managing leave request: {leave_request} for action: {action}")
 
     if request.method == 'POST':
         if action == 'approve':
+            print(f"Approving leave request: {leave_request}")
             leave_request.status = 'Approved'
             leave_request.approver = request.user
             leave_request.save()
             messages.success(request, f"Leave for {leave_request.user.username} approved.")
         elif action == 'reject':
+            print(f"Rejecting leave request: {leave_request}")
             leave_request.status = 'Rejected'
             leave_request.approver = request.user
             leave_request.save()
@@ -1563,6 +1683,7 @@ def manage_leave_request_manager(request, leave_id, action):
         'action': action.capitalize()
     })
 
+
 @login_required
 @user_passes_test(is_admin)  # Admin can view all leave requests
 def view_leave_requests_admin(request):
@@ -1570,14 +1691,6 @@ def view_leave_requests_admin(request):
     leave_requests = Leave.objects.all()
     return render(request, 'components/admin/view_leave_requests.html', {'leave_requests': leave_requests})
 
-
-
-@login_required
-@user_passes_test(is_manager)
-def view_leave_requests_manager(request):
-    """View leave requests for a manager's team."""
-    leave_requests = Leave.objects.filter(user__manager=request.user)  # Manager sees only their team's leave requests
-    return render(request, 'components/manager/view_leave_requests.html', {'leave_requests': leave_requests})
 
 # Admin, HR, Manager views to view leave requests remain as they are
 

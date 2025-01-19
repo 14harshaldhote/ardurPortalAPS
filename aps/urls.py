@@ -96,9 +96,12 @@ manager_patterns = [
     path('employee/', views.manager_employee_profile, name='manager_employee_profile'),
     path('user/<int:user_id>/', views.manager_user_detail, name='manager_user_detail'),
 
+    path('create-project-update/', views.manager_create_project_update, name='manager_create_project_update'),
+    path('edit-project-update/<int:update_id>/', views.manager_edit_project_update, name='manager_edit_project_update'),
+    path('delete-project-update/<int:update_id>/', views.manager_delete_project_update, name='manager_delete_project_update'),
 
 
-    path('leave/requests/', views.view_leave_requests_hr, name='view_leave_requests_manager'),
+    path('leave/requests/', views.view_leave_requests_manager, name='view_leave_requests_manager'),
     path('leave/<int:leave_id>/<str:action>/', views.manage_leave_request_manager, name='manage_leave_manager'),
     path('view_timesheets/', views.manager_view_timesheets, name='view_timesheets'), 
     path('bulk-update-timesheet/', views.bulk_update_timesheet, name='bulk_update_timesheet'),

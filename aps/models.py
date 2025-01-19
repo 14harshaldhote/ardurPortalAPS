@@ -835,3 +835,18 @@ class Break(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.break_type} ({'Active' if self.is_active else 'Ended'})"
+    
+'''---------------------------------- Manager updates team --------------------------------'''
+
+
+class ProjectUpdate(models.Model):
+    project = models.ForeignKey(Project, on_delete=models.CASCADE)
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    title = models.CharField(max_length=200)
+    description = models.TextField()
+    status = models.CharField(max_length=20, choices=[('upcoming', 'Upcoming'), ('in_progress', 'In Progress'), ('completed', 'Completed')], default='upcoming')
+    scheduled_date = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Update for {self.project.name} by {self.created_by.username}"
