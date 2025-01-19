@@ -49,13 +49,8 @@
             animation: gradientAnimation 5s ease infinite;
         }
 
-        .watermark {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            opacity: 0.5;
-            width: 200px;
-        }
+      
+
 
         .navbar {
             position: fixed;
@@ -106,7 +101,16 @@
                 {% endblock %}
             </div>
 
-            <img src="{% static 'images/ardurtech.png' %}" alt="Ardur Technology Watermark" class="watermark">
+            <div class="fixed bottom-0 right-0 flex flex-col items-end p-4 z-50">
+                <div class="flex items-center gap-2 bg-white/90 backdrop-blur-sm p-3 rounded-lg shadow-lg transition-all duration-300 hover:opacity-100 opacity-70">
+                    <p class="text-gray-800 font-semibold whitespace-nowrap">Product by</p>
+                    <img src="{% static 'images/ardurtech.png' %}" alt="Ardur Technology Watermark" class="w-32 h-auto object-contain">
+                </div>
+            </div>
+            
+
+
+
         </div>
     </div>
 

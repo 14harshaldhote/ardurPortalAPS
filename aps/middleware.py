@@ -1,10 +1,14 @@
-# middleware.py
 from django.utils import timezone
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from datetime import timedelta
 from aps.models import UserSession
 import json
+from django.db.models import F
+import logging
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 class IdleTimeTrackingMiddleware:
     def __init__(self, get_response):
@@ -34,7 +38,12 @@ class IdleTimeTrackingMiddleware:
                 # Update session
                 if not request.path.startswith(('/static/', '/media/', '/update-last-activity/')):
                     user_session.last_activity = current_time
-                    user_session.save(update_fields=['last_activity', 'idle_time'])
+                    
+                    # Update IP address if it's changed
+                    if user_session.ip_address != ip_address:
+                        user_session.ip_address = ip_address
+                        
+                    user_session.save(update_fields=['last_activity', 'idle_time', 'ip_address'])
 
         response = self.get_response(request)
         return response
@@ -52,13 +61,23 @@ def update_last_activity(request):
 
             if user_session:
                 current_time = timezone.now()
+                
                 # Calculate idle time since last activity
                 idle_duration = current_time - user_session.last_activity
                 if idle_duration > timedelta(minutes=1):
                     user_session.idle_time += idle_duration
                 
                 user_session.last_activity = current_time
-                user_session.save(update_fields=['last_activity', 'idle_time'])
+                
+                # Update IP address if it's different from the stored value
+                x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+                ip_address = x_forwarded_for.split(',')[0] if x_forwarded_for else request.META.get('REMOTE_ADDR')
+                
+                if user_session.ip_address != ip_address:
+                    user_session.ip_address = ip_address
+                
+                # Using atomic update for concurrency control
+                user_session.save(update_fields=['last_activity', 'idle_time', 'ip_address'])
                 
                 return JsonResponse({
                     'status': 'success',
@@ -69,6 +88,7 @@ def update_last_activity(request):
             return JsonResponse({'status': 'error', 'message': 'No active session'}, status=404)
 
         except Exception as e:
+            logger.error(f"Error updating last activity: {str(e)}")
             return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
 
     return JsonResponse({'status': 'error', 'message': 'Invalid request'}, status=400)
