@@ -1,207 +1,167 @@
 {% extends 'base.html' %}
 
-{% block title %}Timesheet - Ardur Portal{% endblock %}
-
 {% block content %}
-<div class="container mx-auto px-4 py-8">
-    <h1 class="text-3xl font-thin text-gray-800 mb-6">Timesheet</h1>
+<div class="container mx-auto px-4 py-6">
+    <h1 class="text-3xl font-thin text-gray-800 mb-6">Timesheet Management</h1>    <!-- Header Section -->
 
-    <!-- Current day and time display -->
-    <div class=" shadow-sm rounded-sm p-4 mb-6">
-        <div class="flex justify-between items-center">
-            <h3 class="text-lg font-thin text-gray-700">
-                <span id="current-day" class="font-medium"></span> | 
-                <span id="current-time"></span>
-            </h3>
-            
-            <!-- Internal Navigation -->
-            <nav class="flex space-x-6">
-                <a href="#section1" class="nav-link text-lg font-small text-gray-600 hover:text-pink-700 transition-all duration-300"
-                    data-section="section1">Daily Entry</a>
-                <a href="#section2" class="nav-link text-lg font-small text-gray-600 hover:text-pink-700 transition-all duration-300"
-                    data-section="section2">View History</a>
-            </nav>
+    <!-- Display Current Date and Time -->
+    <div class="bg-white rounded-lg shadow p-4 mb-6 flex justify-between items-center">
+        <div>
+            <div id="current-day" class="text-lg text-gray-700 font-medium"></div>
+            <div id="current-time" class="text-gray-600"></div>
         </div>
     </div>
 
-    <!-- Sections -->
-    <section id="section1" class="section mb-12">
-        {% if messages %}
-            <div class="mb-6">
-                {% for message in messages %}
-                    <div class="p-4 mb-4 rounded-lg {% if message.tags == 'success' %}bg-green-100 text-green-700{% elif message.tags == 'error' %}bg-red-100 text-red-700{% else %}bg-blue-100 text-blue-700{% endif %}">
-                        {{ message }}
-                    </div>
-                {% endfor %}
-            </div>
-        {% endif %}
+    <div class="grid grid-cols-1 md:grid-cols-1 gap-6">
+        <!-- Daily Entry Form -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Daily Entry</h2>
 
-        <form method="post" action="{% url 'aps_employee:timesheet' %}" class="bg-white shadow-sm rounded-lg">
-            {% csrf_token %}
-            <div class="p-6">
-                <div class="mb-6">
-                    <label for="week_start_date" class="block text-sm font-medium text-gray-700 mb-2">Timesheet Date:</label>
-                    <input type="date" id="week_start_date" name="week_start_date" 
-                           value="{{ profile.week_start_date|default:today }}" 
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                           required>
+
+            <form method="post" action="{% url 'aps_employee:timesheet' %}">
+                {% csrf_token %}
+                <div class="mb-4">
+                    <label for="week_start_date" class="block text-sm font-medium text-gray-700">Week Start Date</label>
+                    <input type="date" id="week_start_date" name="week_start_date"
+                           value="{{ today }}" 
+                           class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500">
                 </div>
-
-                <div class="overflow-x-auto">
-                    <table class="w-full mb-6">
-                        <thead>
-                            <tr class="bg-gray-50">
-                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Project Name</th>
-                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Task Name</th>
-                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Hours</th>
-                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Actions</th>
+            
+                <div class="border rounded-lg mb-4 overflow-hidden">
+                    <table class="w-full table-auto">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-600">Project</th>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-600">Task</th>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-600">Hours</th>
+                                <th class="w-16"></th>
                             </tr>
                         </thead>
                         <tbody id="timesheet-rows">
-                            <tr class="border-t border-gray-200">
-                                <td class="px-4 py-3">
-                                    <input type="text" name="project_name[]" 
-                                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                                           required>
+                            <tr class="border-t">
+                                <td class="p-3">
+                                    <select name="project_name[]" class="w-full px-3 py-2 border rounded">
+                                        <option value="">Select Project</option>
+                                        {% for project in assigned_projects %}
+                                            <option value="{{ project.name }}">{{ project.name }}</option>
+                                        {% endfor %}
+                                    </select>
                                 </td>
-                                <td class="px-4 py-3">
-                                    <input type="text" name="task_name[]" 
-                                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                                           required>
-                                </td>
-                                <td class="px-4 py-3">
-                                    <input type="number" name="hours[]" step="0.5" 
-                                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                                           required>
-                                </td>
-                                <td class="px-4 py-3">
-                                    <button type="button" 
-                                            class="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors" 
-                                            onclick="removeRow(this)">Remove</button>
+                                <td class="p-3"><input type="text" name="task_name[]" class="w-full px-3 py-2 border rounded"></td>
+                                <td class="p-3"><input type="number" name="hours[]" step="0.5" class="w-full px-3 py-2 border rounded"></td>
+                                <td class="p-3">
+                                    <button type="button" onclick="removeRow(this)" class="text-red-600 hover:text-red-800">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
+                                        </svg>
+                                    </button>
                                 </td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
-
-                <div class="flex justify-between items-center mb-6">
-                    <button type="button" 
-                            class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors" 
-                            onclick="addRow()">+ Add Row</button>
-                    <div class="text-gray-700">
-                        <strong>Total Hours: </strong>
-                        <span id="total-hours" class="font-semibold">0</span>
-                    </div>
-                </div>
-
-                <div class="text-center">
-                    <button type="submit" 
-                            class="px-6 py-3 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors font-medium">
-                        Submit Timesheet
-                    </button>
-                </div>
-            </div>
-        </form>
-    </section>
-
-    <section id="section2" class="section mb-12 hidden">
-        <div class="bg-white shadow-lg rounded-lg p-6">
-            <h2 class="text-2xl font-semibold text-gray-800 mb-6">Timesheet History</h2>
             
-            <!-- Filter Section -->
-            <div class="flex justify-between mb-6">
-                <div class="flex space-x-4">
-                    <input type="date" id="filter-date" class="px-4 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500" placeholder="Filter by Date">
-                    <input type="text" id="filter-project" class="px-4 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500" placeholder="Filter by Project">
-                    <input type="text" id="filter-task" class="px-4 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500" placeholder="Filter by Task">
-                </div>
-                <button class="px-6 py-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 focus:outline-none transition-colors" onclick="applyFilters()">Apply Filters</button>
-            </div>
-    
-            <!-- Timesheet History Table -->
-            {% if timesheet_history %}
-                <div class="overflow-x-auto">
-                    <table class="min-w-full bg-white shadow-sm rounded-lg">
-                        <thead>
-                            <tr class="bg-gray-100 border-b">
-                                <th class="py-2 px-4 text-left text-sm font-semibold text-gray-700">Date</th>
-                                <th class="py-2 px-4 text-left text-sm font-semibold text-gray-700">Project Name</th>
-                                <th class="py-2 px-4 text-left text-sm font-semibold text-gray-700">Task Name</th>
-                                <th class="py-2 px-4 text-left text-sm font-semibold text-gray-700">Hours</th>
-                            </tr>
-                        </thead>
-                        <tbody id="timesheet-table-body">
-                            {% for timesheet in timesheet_history %}
-                                <tr class="border-t">
-                                    <td class="py-2 px-4 text-sm text-gray-700">{{ timesheet.week_start_date }}</td>
-                                    <td class="py-2 px-4 text-sm text-gray-700">{{ timesheet.project_name }}</td>
-                                    <td class="py-2 px-4 text-sm text-gray-700">{{ timesheet.task_name }}</td>
-                                    <td class="py-2 px-4 text-sm text-gray-700">{{ timesheet.hours }}</td>
-                                </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            {% else %}
-                <p class="text-gray-600">No timesheet history available.</p>
-            {% endif %}
+                <button type="button" onclick="addRow()" class="text-blue-600 hover:text-blue-800 mb-4 block">
+                    + Add Row
+                </button>
+            
+                <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                    Submit Timesheet
+                </button>
+            </form>
+            
         </div>
-    </section>
-    
-    <script>
-        function applyFilters() {
-            // Get the filter values
-            const filterDate = document.getElementById('filter-date').value;
-            const filterProject = document.getElementById('filter-project').value.toLowerCase();
-            const filterTask = document.getElementById('filter-task').value.toLowerCase();
-            
-            // Get all rows from the table
-            const rows = document.querySelectorAll('#timesheet-table-body tr');
-            
-            rows.forEach(row => {
-                const date = row.cells[0].textContent;
-                const projectName = row.cells[1].textContent.toLowerCase();
-                const taskName = row.cells[2].textContent.toLowerCase();
-                
-                // Filter based on the values entered
-                const dateMatch = filterDate ? date.includes(filterDate) : true;
-                const projectMatch = filterProject ? projectName.includes(filterProject) : true;
-                const taskMatch = filterTask ? taskName.includes(filterTask) : true;
-                
-                // Show or hide row based on filter criteria
-                if (dateMatch && projectMatch && taskMatch) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        }
-    </script>
-    
-    <style>
-        .hidden {
-            display: none;
-        }
-        #filter-date,
-        #filter-project,
-        #filter-task {
-            width: 250px;
-        }
-        #filter-date:focus,
-        #filter-project:focus,
-        #filter-task:focus {
-            border-color: #ffb766;
-            box-shadow: 0 0 5px rgba(255, 183, 102, 0.7);
-        }
-    </style>
-    
-    
+
+        <!-- History Section -->
+        <!-- History Section -->
+<div class="bg-white rounded-lg shadow p-6">
+    <h2 class="text-xl font-semibold text-gray-800 mb-4">Timesheet History</h2>
+
+    <!-- Filters -->
+    <div class="flex flex-wrap gap-3 mb-6">
+        <input type="date" class="px-3 py-2 border border-gray-300 rounded text-sm shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+        <input type="text" class="px-3 py-2 border border-gray-300 rounded text-sm shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="Filter by Project">
+        <button class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 shadow-md text-sm">
+            Filter
+        </button>
+    </div>
+
+    <!-- Timesheet Table -->
+    <div class="overflow-x-auto">
+        <table class="w-full table-auto border-collapse shadow-lg">
+            <thead class="bg-indigo-50 text-indigo-800">
+                <tr>
+                    <th class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider">Date</th>
+                    <th class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider">Project</th>
+                    <th class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider">Task</th>
+                    <th class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider">Hours</th>
+                    <th class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider">Approval Status</th>
+                    <th class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider">Manager Comments</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for timesheet in timesheet_history %}
+                <tr class="border-t hover:bg-indigo-50 transition ease-in-out">
+                    <td class="px-4 py-3 text-sm text-gray-700">{{ timesheet.week_start_date }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-700">{{ timesheet.project.name }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-700">{{ timesheet.task_name }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-700">{{ timesheet.hours }}</td>
+                    <td class="px-4 py-3 text-sm font-light">
+                        {% if timesheet.approval_status == "Approved" %}
+                        <span class="text-green-600 bg-green-100 px-2 py-1 rounded-full">Approved</span>
+                        {% elif timesheet.approval_status == "Rejected" %}
+                        <span class="text-red-600 bg-red-100 px-2 py-1 rounded-full">Rejected</span>
+                        {% else %}
+                        <span class="text-yellow-600 bg-yellow-100 px-2 py-1 rounded-full">Pending</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-sm text-gray-600 italic">{{ timesheet.manager_comments|default:"-" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+    </div>
 </div>
 
 <script>
+    // Add a new row in the timesheet form
+    function addRow() {
+        var newRow = document.createElement('tr');
+        newRow.classList.add('border-t');
+        newRow.innerHTML = `
+            <td class="p-3">
+                <select name="project_name[]" class="w-full px-3 py-2 border rounded">
+                    <option value="">Select Project</option>
+                    {% for project in assigned_projects %}
+                        <option value="{{ project.name }}">{{ project.name }}</option>
+                    {% endfor %}
+                </select>
+            </td>
+            <td class="p-3"><input type="text" name="task_name[]" class="w-full px-3 py-2 border rounded"></td>
+            <td class="p-3"><input type="number" name="hours[]" step="0.5" class="w-full px-3 py-2 border rounded"></td>
+            <td class="p-3">
+                <button type="button" onclick="removeRow(this)" class="text-red-600 hover:text-red-800">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </td>
+        `;
+        document.getElementById('timesheet-rows').appendChild(newRow);
+    }
+
+    // Remove a row from the timesheet form
+    function removeRow(button) {
+        button.closest('tr').remove();
+    }
+
+    // Update the date and time display
     function updateDateTime() {
         const now = new Date();
-        const day = now.toLocaleDateString('en-IN', { weekday: 'long' });
+        const day = now.toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
         const time = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
         document.getElementById('current-day').textContent = day;
@@ -210,81 +170,6 @@
 
     setInterval(updateDateTime, 1000);
     updateDateTime();
-
-    document.addEventListener('DOMContentLoaded', function () {
-        const navLinks = document.querySelectorAll('.nav-link');
-        const sections = document.querySelectorAll('.section');
-
-        navLinks.forEach(link => {
-            link.addEventListener('click', function (event) {
-                event.preventDefault();
-                const targetSection = this.getAttribute('data-section');
-                
-                navLinks.forEach(l => l.classList.remove('text-blue-600'));
-                this.classList.add('text-blue-600');
-                
-                sections.forEach(section => section.classList.add('hidden'));
-                document.getElementById(targetSection).classList.remove('hidden');
-            });
-        });
-        
-        navLinks[0].click();
-    });
-
-    function addRow() {
-        const table = document.getElementById('timesheet-rows');
-        const newRow = `
-            <tr class="border-t border-gray-200">
-                <td class="px-4 py-3">
-                    <input type="text" name="project_name[]" 
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                           required>
-                </td>
-                <td class="px-4 py-3">
-                    <input type="text" name="task_name[]" 
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                           required>
-                </td>
-                <td class="px-4 py-3">
-                    <input type="number" name="hours[]" step="0.5" 
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                           required>
-                </td>
-                <td class="px-4 py-3">
-                    <button type="button" 
-                            class="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors" 
-                            onclick="removeRow(this)">Remove</button>
-                </td>
-            </tr>`;
-        table.insertAdjacentHTML('beforeend', newRow);
-        updateTotalHours();
-    }
-
-    function removeRow(button) {
-        const row = button.closest('tr');
-        row.remove();
-        updateTotalHours();
-    }
-
-    function updateTotalHours() {
-        const hoursInputs = document.querySelectorAll('input[name="hours[]"]');
-        let total = 0;
-        hoursInputs.forEach(input => {
-            total += parseFloat(input.value) || 0;
-        });
-        document.getElementById('total-hours').textContent = total.toFixed(2);
-    }
-
-    document.addEventListener('input', event => {
-        if (event.target.name === 'hours[]') {
-            updateTotalHours();
-        }
-    });
 </script>
 
-<style>
-    .hidden {
-        display: none;
-    }
-</style>
 {% endblock %}

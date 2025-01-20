@@ -30,6 +30,9 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'aps.middleware.IdleTimeTrackingMiddleware',  # Add this line
 ]
 
 ROOT_URLCONF = 'ardurportal.urls'
@@ -87,7 +90,11 @@ AUTH_PASSWORD_VALIDATORS = [
 TIME_ZONE = 'Asia/Kolkata'
 USE_TZ = True
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# Ensure collectstatic is run during deployment
+
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 

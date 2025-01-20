@@ -10,19 +10,22 @@
                 Dashboard
             </a>
         </li>
-        <li>
-            <a href="#"
-                class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
-                Profile
-            </a>
-        </li>
+        {% if not is_admin %}
+    <li>
+        <a href="{% url 'user_profile' request.user.id %}"
+            class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
+            Profile
+        </a>
+    </li>
+{% endif %}
+
 
         <!-- Employee Specific -->
         {% if is_employee %}
         <li>
-            <a href="{% url 'aps_employee:it_support_home' %}"
+            <a href="{% url 'aps_employee:employee_support' %}"
                 class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
-                IT Support
+                Support
             </a>
         </li>
         <li>
@@ -37,54 +40,60 @@
                 Time Sheet
             </a>
         </li>
-        <li>
-            <a href="{% url 'aps_employee:leave_request' %}"
+        <li class="relative">
+            <a href="{% url 'aps_employee:leave_view' %}"
                 class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
-                Leave Request
+                Leave
             </a>
+
         </li>
-        <li>
-            <a href="{% url 'aps_employee:view_leave_balance' %}"
-                class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
-                Leave Balance
-            </a>
-        </li>
+     
+
         {% endif %}
 
         <!-- HR Specific -->
         {% if is_hr %}
         <li>
-            <a href="#"
+            <a href="{% url 'aps_hr:view_leave_requests_hr' %}"
                 class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
-                View Leave Requests
+                Employee Leave
             </a>
         </li>
-        <li>
-            <a href="#"
-                class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
-                Update Employee Info
-            </a>
-        </li>
+       
         <li>
             <a href="{% url 'aps_hr:attendance' %}"
                 class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
                 Attendance Records
             </a>
         </li>
+        <li>
+            <a href="{% url 'aps_hr:hr_dashboard' %}"
+                class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
+                Employee Info
+            </a>
+        </li>
+        <li>
+            <a href="{% url 'aps_hr:hr_support' %}"
+                class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
+                Employee Support
+            </a>
+        </li>
+        
         {% endif %}
 
         <!-- Manager Specific -->
         {% if is_manager %}
+        
         <li>
-            <a href="#"
+            <a href="{% url 'aps_manager:view_leave_requests_manager' %}"
                 class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
-                Assign Tasks
+                Approve Leaves
             </a>
         </li>
         <li>
-            <a href="#"
+            <a href="{% url 'aps_manager:project_list'%}"
                 class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
-                Approve Leaves
+                Projects
             </a>
         </li>
         <li>
@@ -96,9 +105,16 @@
         <li>
             <a href="{% url 'aps_manager:view_timesheets' %}"
                 class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
-                View Timesheets
+                Employee Timesheets
             </a>
         </li>
+        <li>
+            <a href="{% url 'aps_manager:manager_employee_profile' %}"
+                class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
+                Employee Details
+            </a>
+        </li>
+        
         {% endif %}
 
         <!-- Admin Specific -->
@@ -109,12 +125,8 @@
                 User Sessions
             </a>
         </li>
-        <li>
-            <a href="{% url 'aps_admin:it_support_admin' %}"
-                class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
-                IT Support
-            </a>
-        </li>
+       
+     
         <li>
             <a href="{% url 'aps_admin:report' %}"
                 class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
@@ -122,15 +134,22 @@
             </a>
         </li>
         <li>
-            <a href="{% url 'aps_admin:project_management' %}"
-               class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
+            <a href="{% url 'aps_admin:project_dashboard' %}"
+            class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
                 Projects
             </a>
         </li>
+
         <li>
             <a href="{% url 'aps_admin:attendance' %}"
                 class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
                 Admin Attendance
+            </a>
+        </li>
+        <li>
+            <a href="{% url 'aps_admin:admin_support' %}"
+                class="block py-3 px-4 rounded-lg text-black transition-all duration-300 hover:text-yellow-100 hover:bg-yellow-500 hover:shadow-md">
+                Support
             </a>
         </li>
         {% endif %}
