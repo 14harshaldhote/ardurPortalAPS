@@ -91,9 +91,9 @@ TIME_ZONE = 'Asia/Kolkata'
 USE_TZ = True
 
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [
-    BASE_DIR / "static",  # To include global static files folder if needed
-]
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# Ensure collectstatic is run during deployment
 
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
