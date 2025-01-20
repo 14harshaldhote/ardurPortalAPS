@@ -39,6 +39,8 @@ admin_patterns = [
     # Update project hours
     path('projects/<int:project_id>/update_hours/', views.update_hours, name='update_hours'),
 
+    path('reports/breaks/', views.break_report_view, name='break_report_view'),  # Add this path
+
 
 
  

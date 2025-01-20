@@ -1,47 +1,85 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="min-h-screen bg-gray-50 py-8">
-    <div class="container mx-auto px-4 max-w-6xl">
-        <div class="flex gap-4 h-[80vh]">
-            <!-- Sidebar -->
-            <div class="w-64 bg-white rounded-lg shadow-lg flex flex-col">
-                <div class="p-4 border-b">
-                    <input type="text" 
-                           id="searchUser" 
-                           placeholder="Search users..." 
-                           class="w-full px-3 py-2 bg-gray-50 rounded-lg text-sm focus:outline-none focus:ring-2">
-                </div>
-                
-                <div class="flex-1 overflow-y-auto p-2" id="usersList">
-                    <!-- Users will be inserted here -->
-                </div>
-            </div>
+<!-- component -->
+<div class="h-screen flex flex-col">
+    <!-- Top Banner -->
+    <div class="w-full h-32 bg-green-200 rounded-md"></div>
 
-            <!-- Chat Area -->
-            <div class="flex-1 bg-white rounded-lg shadow-lg flex flex-col">
-                <div class="p-4 border-b flex justify-between items-center">
-                    <div class="flex items-center gap-3">
-                        <span id="selectedUserStatus" class="w-3 h-3 rounded-full bg-gray-300"></span>
-                        <span id="selectedUser" class="font-medium">Select a user</span>
+    <!-- Main Container -->
+    <div class="container mx-auto -mt-32">
+        <div class="py-6 h-screen">
+            <div class="flex border border-gray-300 rounded shadow-lg h-full">
+                <!-- Sidebar -->
+                <div class="w-1/3 border-r flex flex-col">
+                   
+
+                    <!-- Search Bar -->
+                    <div class="py-2 px-2 bg-gray-50">
+                        <input type="text" class="w-full px-3 py-2 text-sm border rounded" placeholder="Search or start new chat">
+                    </div>
+
+                    <!-- Contacts List -->
+                    <div class="bg-gray-50 flex-1 overflow-auto">
+                        <!-- Contact Item -->
+                        <div class="flex items-center px-4 py-3 hover:bg-gray-200 cursor-pointer">
+                            <img class="h-12 w-12 rounded-full" src="https://darrenjameseeley.files.wordpress.com/2014/09/expendables3.jpeg" alt="Contact avatar">
+                            <div class="ml-4 flex-1 border-b py-4">
+                                <div class="flex justify-between items-center">
+                                    <p class="font-semibold text-gray-800">New Movie! Expendables 4</p>
+                                    <p class="text-xs text-gray-500">12:45 pm</p>
+                                </div>
+                                <p class="text-gray-600 text-sm">Get Andrés on this movie ASAP!</p>
+                            </div>
+                        </div>
+                        <!-- Repeat similar contact items -->
                     </div>
                 </div>
 
-                <div class="flex-1 overflow-y-auto p-4 bg-gray-50" id="messages">
-                    <!-- Messages will appear here -->
-                </div>
+                <!-- Chat Section -->
+                <div class="w-2/3 flex flex-col">
+                    <!-- Chat Header -->
+                    <div class="py-2 px-3 bg-gray-100 flex justify-between items-center">
+                        <div class="flex items-center">
+                            <img class="w-10 h-10 rounded-full" src="https://darrenjameseeley.files.wordpress.com/2014/09/expendables3.jpeg" alt="Chat avatar">
+                            <div class="ml-4">
+                                <p class="font-semibold text-gray-800">New Movie! Expendables 4</p>
+                                <p class="text-xs text-gray-500">Andrés, Tom, Harrison, Arnold, Sylvester</p>
+                            </div>
+                        </div>
+                        
+                    </div>
 
-                <div class="p-4 border-t">
-                    <div class="flex gap-2">
-                        <input type="text" 
-                               id="messageInput" 
-                               class="flex-1 px-4 py-2 rounded-lg border focus:outline-none focus:ring-2"
-                               placeholder="Type a message...">
-                        <button id="sendButton" 
-                                class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                                disabled>
-                            Send
-                        </button>
+                    <!-- Messages Area -->
+                    <div class="flex-1 bg-blue-50 overflow-auto">
+                        <div class="px-4 py-3">
+                            <div class="flex justify-center mb-2">
+                                <div class="rounded bg-purple-200 px-4 py-2">
+                                    <p class="text-sm text-gray-700">February 20, 2018</p>
+                                </div>
+                            </div>
+                            <!-- Incoming Message -->
+                            <div class="flex items-start mb-3">
+                                <div class="bg-purple-100 rounded px-4 py-2">
+                                    <p class="text-sm font-bold text-teal-700">Sylvester Stallone</p>
+                                    <p class="text-sm text-gray-700 mt-1">Hi everyone! Glad you could join! I am making a new movie.</p>
+                                    <p class="text-xs text-gray-500 text-right mt-1">12:45 pm</p>
+                                </div>
+                            </div>
+                            <!-- Outgoing Message -->
+                            <div class="flex justify-end mb-3">
+                                <div class="bg-blue-200 rounded px-4 py-2">
+                                    <p class="text-sm text-gray-800">Hi guys.</p>
+                                    <p class="text-xs text-gray-500 text-right mt-1">12:45 pm</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Input Section -->
+                    <div class="bg-gray-100 px-4 py-4 flex items-center">
+                        <input type="text" class="flex-1 px-3 py-2 text-sm border rounded" placeholder="Type a message">
+                        <button class="ml-4 px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">Send</button>
                     </div>
                 </div>
             </div>
@@ -49,186 +87,5 @@
     </div>
 </div>
 
-<template id="userTemplate">
-    <div class="user-item p-3 rounded-lg hover:bg-gray-50 cursor-pointer mb-1">
-        <div class="flex items-center gap-3">
-            <span class="status-indicator w-2 h-2 rounded-full"></span>
-            <span class="username font-medium"></span>
-        </div>
-    </div>
-</template>
 
-<template id="messageTemplate">
-    <div class="message mb-4">
-        <div class="flex items-end gap-2">
-            <div class="max-w-[80%] rounded-lg p-3">
-                <p class="text-sm"></p>
-                <span class="text-xs text-gray-500 mt-1 block"></span>
-            </div>
-        </div>
-    </div>
-</template>
-
-<script>
-// WebSocket connection
-let ws = null;
-let selectedUserId = null;
-const wsScheme = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-const wsUrl = `${wsScheme}//${window.location.host}/ws/chat/`;
-
-function connectWebSocket() {
-    ws = new WebSocket(wsUrl);
-    
-    ws.onopen = () => {
-        console.log('Connected to WebSocket');
-        loadUsers();
-    };
-
-    ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        handleWebSocketMessage(data);
-    };
-
-    ws.onclose = () => {
-        console.log('WebSocket disconnected. Reconnecting...');
-        setTimeout(connectWebSocket, 1000);
-    };
-
-    ws.onerror = (error) => {
-        console.error("WebSocket error: ", error);
-    };
-}
-
-function handleWebSocketMessage(data) {
-    switch(data.type) {
-        case 'chat.message':
-            appendMessage(data.message);
-            break;
-        case 'user.status':
-            updateUserStatus(data.userId, data.status);
-            break;
-        case 'users.list':
-            updateUsersList(data.users);
-            break;
-        case 'message.history':
-            appendMessageHistory(data.messages);
-            break;
-        default:
-            console.error('Unknown message type:', data.type);
-            break;
-    }
-}
-
-function loadUsers() {
-    ws.send(JSON.stringify({
-        type: 'get.users'
-    }));
-}
-
-function updateUsersList(users) {
-    const usersList = document.getElementById('usersList');
-    usersList.innerHTML = '';
-    const template = document.getElementById('userTemplate');
-
-    users.forEach(user => {
-        const clone = template.content.cloneNode(true);
-        const item = clone.querySelector('.user-item');
-        const username = clone.querySelector('.username');
-        const status = clone.querySelector('.status-indicator');
-
-        item.dataset.userId = user.id;
-        username.textContent = user.username;
-        status.classList.add(user.online ? 'bg-green-500' : 'bg-gray-300');
-
-        item.addEventListener('click', () => selectUser(user.id, user.username));
-        usersList.appendChild(clone);
-    });
-}
-
-function updateUserStatus(userId, status) {
-    const userItem = document.querySelector(`[data-user-id="${userId}"]`);
-    if (userItem) {
-        const statusIndicator = userItem.querySelector('.status-indicator');
-        statusIndicator.classList.remove('bg-green-500', 'bg-gray-300');
-        statusIndicator.classList.add(status === 'online' ? 'bg-green-500' : 'bg-gray-300');
-    }
-}
-
-function selectUser(userId, username) {
-    selectedUserId = userId;
-    document.getElementById('selectedUser').textContent = username;
-    document.getElementById('sendButton').disabled = false;
-    document.getElementById('messages').innerHTML = '';
-
-    // Fetch message history
-    ws.send(JSON.stringify({
-        type: 'get.history',
-        userId: userId
-    }));
-}
-
-function appendMessageHistory(messages) {
-    messages.forEach(message => {
-        appendMessage(message);
-    });
-}
-
-function appendMessage(message) {
-    const messages = document.getElementById('messages');
-    const template = document.getElementById('messageTemplate');
-    const clone = template.content.cloneNode(true);
-    const container = clone.querySelector('.message');
-    const content = clone.querySelector('p');
-    const timestamp = clone.querySelector('span');
-    const bubble = clone.querySelector('.max-w-[80%]');
-
-    if (message.sender === '{{ request.user.username }}') {
-        container.classList.add('flex', 'justify-end');
-        bubble.classList.add('bg-blue-600', 'text-white');
-        timestamp.classList.replace('text-gray-500', 'text-blue-200');
-    } else {
-        bubble.classList.add('bg-white');
-    }
-
-    content.textContent = message.content;
-    timestamp.textContent = new Date(message.timestamp).toLocaleString();
-    messages.appendChild(clone);
-    messages.scrollTop = messages.scrollHeight;
-}
-
-// Event Listeners
-document.getElementById('messageInput').addEventListener('keypress', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-    }
-});
-
-document.getElementById('sendButton').addEventListener('click', sendMessage);
-
-document.getElementById('searchUser').addEventListener('input', (e) => {
-    const query = e.target.value.toLowerCase();
-    document.querySelectorAll('.user-item').forEach(item => {
-        const username = item.querySelector('.username').textContent.toLowerCase();
-        item.style.display = username.includes(query) ? '' : 'none';
-    });
-});
-
-function sendMessage() {
-    const input = document.getElementById('messageInput');
-    const content = input.value.trim();
-    
-    if (content && selectedUserId) {
-        ws.send(JSON.stringify({
-            type: 'chat.message',
-            recipient: selectedUserId,
-            content: content
-        }));
-        input.value = '';
-    }
-}
-
-// Initialize WebSocket connection
-connectWebSocket();
-</script>
 {% endblock %}

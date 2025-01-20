@@ -3,16 +3,13 @@
 <div class="container mx-auto px-4 py-8">
     <!-- Header Section -->
     <div class="mb-8">
-        <h1 class="text-3xl font-bold text-gray-800 mb-2">Reports Dashboard</h1>
-        <p class="text-gray-600">Access and analyze your business insights</p>
+        <h1 class="text-4xl font-thin text-gray-800 mb-2">Reports Dashboard</h1>
     </div>
-    
 
     <!-- Reports Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {% for item in nav_items %}
-        <a href="/admin/reports/{{ item.id }}/" 
-           class="group block p-6 bg-white rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition duration-300">
+        <a href="{{ item.url }}" class="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow break-report-item" data-item="{{ item.name }}" data-url="{{ item.url }}">
             <div class="flex items-center justify-between mb-4">
                 <div class="p-3 rounded-lg 
                     {% if forloop.counter == 1 %}bg-blue-100 text-blue-600
@@ -46,41 +43,6 @@
         {% endfor %}
     </div>
 
-    <!-- Quick Stats Section -->
-    <div class="mt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div class="bg-white p-6 rounded-xl shadow-lg">
-            <div class="flex items-center justify-between">
-                <h4 class="text-gray-600 text-sm font-medium">Total Reports</h4>
-                <span class="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded-full">Today</span>
-            </div>
-            <p class="text-2xl font-bold text-gray-800 mt-2">{{ nav_items|length }}</p>
-        </div>
-
-        <div class="bg-white p-6 rounded-xl shadow-lg">
-            <div class="flex items-center justify-between">
-                <h4 class="text-gray-600 text-sm font-medium">Last Updated</h4>
-                <span class="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded-full">Active</span>
-            </div>
-            <p class="text-2xl font-bold text-gray-800 mt-2">Just Now</p>
-        </div>
-
-        <div class="bg-white p-6 rounded-xl shadow-lg">
-            <div class="flex items-center justify-between">
-                <h4 class="text-gray-600 text-sm font-medium">Data Points</h4>
-                <span class="bg-purple-100 text-purple-800 text-xs font-medium px-2.5 py-0.5 rounded-full">Live</span>
-            </div>
-            <p class="text-2xl font-bold text-gray-800 mt-2">1.2M</p>
-        </div>
-
-        <div class="bg-white p-6 rounded-xl shadow-lg">
-            <div class="flex items-center justify-between">
-                <h4 class="text-gray-600 text-sm font-medium">Report Types</h4>
-                <span class="bg-yellow-100 text-yellow-800 text-xs font-medium px-2.5 py-0.5 rounded-full">Updated</span>
-            </div>
-            <p class="text-2xl font-bold text-gray-800 mt-2">{{ nav_items|length }}</p>
-        </div>
-    </div>
-
     <!-- Help Section -->
     <div class="mt-12 bg-gray-50 rounded-xl p-6">
         <div class="flex items-center space-x-3 mb-4">
@@ -92,4 +54,6 @@
         <p class="text-gray-600">Select any report category above to view detailed analytics and insights. For assistance, contact the support team.</p>
     </div>
 </div>
+
+
 {% endblock %}

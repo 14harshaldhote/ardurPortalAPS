@@ -167,7 +167,6 @@ def reset_password(request):
         current_password = request.POST.get('current_pwd')
         new_password = request.POST.get('new_pwd')
         confirm_password = request.POST.get('confirm_pwd')
-
         # Check if new password matches confirm password
         if new_password != confirm_password:
             messages.error(request, "New password and confirm password do not match.")
@@ -179,7 +178,6 @@ def reset_password(request):
             # Password change logic
             user.set_password(new_password)
             user.save()
-
             # Update session authentication hash to prevent logout after password change
             update_session_auth_hash(request, user)
 
@@ -394,11 +392,63 @@ def get_attendance_stats(user):
         'total_absent': absent_days,
         'change_display': abs(attendance_change) if attendance_change < 0 else attendance_change
     }
+
 from django.utils import timezone
 
 @login_required
 def dashboard_view(request):
     user = request.user
+
+    # Get user's current session status
+    user_session = UserSession.objects.filter(
+        user=user,
+        session_key=request.session.session_key,
+        logout_time__isnull=True
+    ).last()
+    
+    # Calculate user status
+    def format_timedelta(td):
+        """Helper function to format timedelta into a readable string"""
+        total_seconds = int(td.total_seconds())
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+        
+        if hours > 0:
+            return f"{hours}h {minutes}m"
+        return f"{minutes}m"
+
+    # Calculate user status
+    user_status = {
+        'status': 'offline',
+        'color': 'gray',
+        'idle_time': None,
+        'working_hours': None,
+        'formatted_idle_time': None
+    }
+    
+    if user_session:
+        current_time = timezone.now()
+        time_since_last_activity = current_time - user_session.last_activity
+        
+        # If last activity was less than 1 minute ago - user is active
+        if time_since_last_activity < timedelta(minutes=1):
+            user_status['status'] = 'active'
+            user_status['color'] = 'green'
+        # If last activity was between 1-5 minutes ago - user is idle
+        elif time_since_last_activity < timedelta(minutes=5):
+            user_status['status'] = 'idle'
+            user_status['color'] = 'yellow'
+        else:
+            user_status['status'] = 'inactive'
+            user_status['color'] = 'red'
+        
+        user_status['idle_time'] = user_session.idle_time
+        user_status['working_hours'] = user_session.working_hours
+        user_status['last_activity'] = user_session.last_activity if user_session.last_activity else None
+        
+        # Format idle time as a readable string
+        if user_status['idle_time']:
+            user_status['formatted_idle_time'] = format_timedelta(user_status['idle_time'])
 
     # Check if the user has the HR role
     is_hr = user.groups.filter(name='HR').exists()
@@ -496,7 +546,9 @@ def dashboard_view(request):
         'show_employee_directory': is_hr,
         'break_data': break_data,
         'break_types': dict(Break.BREAK_TYPES),
-        'break_durations': {k: int(v.total_seconds() / 60) for k, v in Break.BREAK_DURATIONS.items()}
+        'break_durations': {k: int(v.total_seconds() / 60) for k, v in Break.BREAK_DURATIONS.items()},
+        'user_status': user_status,
+
     }
 
     return render(request, 'dashboard.html', context)
@@ -667,6 +719,9 @@ def hr_delete_update(request, update_id):
         
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+    
+''' ------------------------------------------------------- BREAK AREA AREA --------------------------------------------------------- '''
+
 
 
 ''' ------------------------------------------------------- MANAGER TEAM PROJECT AREA --------------------------------------------------------- '''
@@ -1019,8 +1074,16 @@ def is_admin(user):
 @user_passes_test(is_admin)  # Ensure the user is an admin
 def report_view(request):
     """Main report navigation view."""
+    
     # Navigation items for the report dashboard
     nav_items = [
+        {
+            'id': 'breaks', 
+            'name': 'Break Report', 
+            'icon': 'fas fa-clock',
+            'description': 'View breaks taken by all users.',
+            'url': reverse('aps_admin:break_report_view')  # Add URL to the nav item
+        },
         {
             'id': 'featureusage', 
             'name': 'Feature Usage', 
@@ -1049,6 +1112,12 @@ def report_view(request):
     
     # Additional sections for the report dashboard
     sections = [
+        {
+            "title": "Break Report",
+            "description": "This section allows you to view all the breaks taken by users.",
+            "content": "You can filter the breaks by group, break type, and date.",
+            "link": "/aps/reports/breaks/",  # Link to the break report page
+        },
         {
             "title": "Feature Usage",
             "description": "This section provides insights into how features are being used within the platform.",
@@ -1094,6 +1163,82 @@ def projects_report_view(request):
     """View to display projects report."""
     return render(request, 'components/admin/reports/projects_report.html')
 
+@login_required
+@user_passes_test(is_admin)
+def break_report_view(request):
+    """View for admin to see all breaks taken by all users."""
+    
+    # Get filter parameters
+    group_name = request.GET.get('group', '')
+    break_type = request.GET.get('break_type', '')
+    date_str = request.GET.get('date', '')
+
+    # Start with all breaks - no initial filter
+    breaks_query = Break.objects.select_related('user').all()
+
+    # Apply filters only if they're provided
+    if group_name:
+        breaks_query = breaks_query.filter(user__groups__name=group_name)
+    
+    if break_type:
+        breaks_query = breaks_query.filter(break_type=break_type)
+    
+    if date_str:
+        try:
+            filter_date = timezone.datetime.strptime(date_str, '%Y-%m-%d').date()
+            breaks_query = breaks_query.filter(start_time__date=filter_date)
+        except ValueError:
+            pass
+
+    # Calculate duration for each break
+    for break_obj in breaks_query:
+        if break_obj.end_time:
+            duration = (break_obj.end_time - break_obj.start_time).total_seconds() / 60
+            break_obj.duration = int(duration)  # Duration in minutes
+        else:
+            break_obj.duration = None  # If break is ongoing
+
+    # Order breaks by start time (most recent first)
+    breaks_query = breaks_query.order_by('-start_time')
+
+    # Debug print
+    print(f"Total breaks found: {breaks_query.count()}")
+    for break_obj in breaks_query:
+        print(f"Break: {break_obj.id}, User: {break_obj.user}, Type: {break_obj.break_type}")
+
+    # Pagination
+    paginator = Paginator(breaks_query, 10)  # 10 breaks per page
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+
+    # Add pagination info
+    page_obj.start = (page_obj.number - 1) * paginator.per_page + 1
+    page_obj.end = min(page_obj.start + paginator.per_page - 1, paginator.count)
+    page_obj.total = paginator.count
+
+    # Get all groups for the filter dropdown
+    groups = Group.objects.all()
+    
+    # Debug print groups
+    print(f"Available groups: {[group.name for group in groups]}")
+
+    # Define break types
+    break_types = [
+        'Tea Break (10 mins)',
+        'Lunch/Dinner Break (30 mins)',
+        'Tea Break (15 mins)'
+    ]
+
+    context = {
+        'breaks': page_obj,
+        'groups': groups,
+        'break_types': break_types,
+        'selected_group': group_name,
+        'selected_break_type': break_type,
+        'selected_date': date_str,
+    }
+
+    return render(request, 'components/admin/break_report.html', context)
 
 @login_required
 @user_passes_test(is_admin)
@@ -1609,7 +1754,6 @@ def leave_view(request):
             return redirect('aps_employee:leave_view')
 
     # Render the page with the leave balance and the leave requests for the user
-    print(f"Leave balance: {leave_balance}, Leave requests: {leave_requests}")
     return render(request, 'components/employee/leave.html', {
         'leave_balance': leave_balance,
         'leave_requests': leave_requests,  # Pass leave_requests to the template

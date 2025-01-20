@@ -33,9 +33,31 @@
                             </div>
                             <div class="flex items-center space-x-4">
                                 <span class="flex items-center space-x-2">
-                                    <span class="w-2 h-2 rounded-full bg-green-500"></span>
-                                    <span class="text-sm text-gray-600">Online</span>
+                                    <span class="w-2 h-2 rounded-full transition-colors duration-300 
+                                        {% if user_status.status == 'active' %}bg-green-500
+                                        {% elif user_status.status == 'idle' %}bg-yellow-500
+                                        {% elif user_status.status == 'inactive' %}bg-red-500
+                                        {% else %}bg-gray-500{% endif %}">
+                                    </span>
+                                    <span class="text-sm text-gray-600">
+                                        {{ user_status.status|title }}
+                                        {% if user_status.status != 'offline' %}
+                                            {% if user_status.idle_time %}
+                                                <span class="text-xs text-gray-500">
+                                                    {% if user_status.idle_time.days %}
+                                                        (Idle: {{ user_status.idle_time.days }} days)
+                                                    {% else %}
+                                                        (Idle: {{ user_status.formatted_idle_time }})
+                                                    {% endif %}
+                                                </span>
+                                            {% else %}
+                                                <span class="text-xs text-gray-500">No idle time</span>
+                                            {% endif %}
+                                        {% endif %}
+                                    </span>
                                 </span>
+                                
+                                
                                 <button class="btn-secondary">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -85,7 +107,7 @@
                                         </h2>
                                         {% endif %}
                                     </div>
-                                    
+
 
                                     {% if projects %}
                                     <div class="space-y-4 overflow-y-auto max-h-32">
@@ -143,41 +165,41 @@
 
                             <!-- Right Sidebar -->
                             <!-- Right Sidebar -->
-                           <!-- Right Sidebar -->
-<div class="space-y-8">
-    <!-- User Stats -->
-    {% if not is_admin %}
-    <div class="card">
-        <h3 class="text-lg font-bold text-gray-900 mb-4">Quick Stats</h3>
-        <div class="grid grid-cols-2 gap-4">
-            {% if is_employee %}
-            <div class="bg-indigo-50 rounded-lg p-4">
-                <p class="text-sm text-indigo-600 mb-1">Hours Today</p>
-                <p class="text-2xl font-bold text-indigo-700">{{ hours_logged }}</p>
-            </div>
-            {% endif %}
-            {% if not is_hr %}
-            <div class="bg-green-50 rounded-lg p-4">
-                <p class="text-sm text-green-600 mb-1">Active Projects</p>
-                <p class="text-2xl font-bold text-green-700">{{ projects|length }}</p>
-            </div>
-            {% endif %}
-            {% if is_hr %}
-            <div class="bg-yellow-50 rounded-lg p-4">
-                <p class="text-sm text-yellow-600 mb-1">Employees Present</p>
-                <p class="text-2xl font-bold text-yellow-700">{{ present_employees }}</p>
-            </div>
-            <div class="bg-red-50 rounded-lg p-4">
-                <p class="text-sm text-red-600 mb-1">Employees Absent</p>
-                <p class="text-2xl font-bold text-red-700">{{ absent_employees }}</p>
-            </div>
-            {% endif %}
-        </div>
-    </div>
-    {% endif %}
-</div>
+                            <!-- Right Sidebar -->
+                            <div class="space-y-8">
+                                <!-- User Stats -->
+                                {% if not is_admin %}
+                                <div class="card">
+                                    <h3 class="text-lg font-bold text-gray-900 mb-4">Quick Stats</h3>
+                                    <div class="grid grid-cols-2 gap-4">
+                                        {% if is_employee %}
+                                        <div class="bg-indigo-50 rounded-lg p-4">
+                                            <p class="text-sm text-indigo-600 mb-1">Hours Today</p>
+                                            <p class="text-2xl font-bold text-indigo-700">{{ hours_logged }}</p>
+                                        </div>
+                                        {% endif %}
+                                        {% if not is_hr %}
+                                        <div class="bg-green-50 rounded-lg p-4">
+                                            <p class="text-sm text-green-600 mb-1">Active Projects</p>
+                                            <p class="text-2xl font-bold text-green-700">{{ projects|length }}</p>
+                                        </div>
+                                        {% endif %}
+                                        {% if is_hr %}
+                                        <div class="bg-yellow-50 rounded-lg p-4">
+                                            <p class="text-sm text-yellow-600 mb-1">Employees Present</p>
+                                            <p class="text-2xl font-bold text-yellow-700">{{ present_employees }}</p>
+                                        </div>
+                                        <div class="bg-red-50 rounded-lg p-4">
+                                            <p class="text-sm text-red-600 mb-1">Employees Absent</p>
+                                            <p class="text-2xl font-bold text-red-700">{{ absent_employees }}</p>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </div>
 
-                            
+
 
                         </div>
                     </div>
@@ -195,9 +217,6 @@
             {% include 'card/break_card.html' %}
             {% include 'card/attendance_card.html' %}
             {% include 'card/employee_directory.html' %}
-
-
-
             {% elif is_employee %}
             {% include 'card/tasks_card.html' %}
             {% include 'card/attendance_card.html' %}
@@ -225,7 +244,7 @@
             {% endif %}
         </div>
     </div>
-   
+
 </div>
 
 <!-- CSS for buttons -->
