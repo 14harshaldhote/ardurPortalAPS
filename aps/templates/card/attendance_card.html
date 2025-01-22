@@ -1,4 +1,4 @@
-<div class="bg-white shadow-xl rounded-xl p-4 sm:p-6 transform transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:bg-green-50">
+<div class="bg-white shadow-xl rounded-xl p-6 sm:p-8 transform transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:bg-green-50">
     <!-- Header Section -->
     <div class="flex justify-between items-center mb-6">
         <div class="flex items-center space-x-3">
@@ -13,30 +13,49 @@
     </div>
 
     <!-- Attendance Stats -->
-    <div class="flex flex-col items-center space-y-2 mb-6">
+    <div class="flex flex-col items-center space-y-4 mb-6">
         <div class="relative">
-            <p class="text-4xl sm:text-5xl font-bold text-green-600">{{ attendance.attendance_percentage }}%</p>
+            <p class="text-5xl font-bold text-green-600">{{ attendance.attendance_percentage|default:"0.0" }}%</p>
             {% if attendance.attendance_change > 0 %}
-                <span class="absolute -top-1 -right-4 text-sm text-green-500">↑{{ attendance.attendance_change }}%</span>
+                <span class="absolute -top-1 -right-4 text-sm text-green-500">↑{{ attendance.attendance_change|default:"0.0" }}%</span>
             {% elif attendance.attendance_change < 0 %}
-                <span class="absolute -top-1 -right-4 text-sm text-red-500">↓{{ attendance.change_display }}%</span>
+                <span class="absolute -top-1 -right-4 text-sm text-red-500">↓{{ attendance.change_display|default:"0.0" }}%</span>
             {% endif %}
         </div>
         <p class="text-sm text-gray-500">Current Attendance</p>
+        <!-- Animated Progress Bar -->
         <div class="w-full bg-gray-200 rounded-full h-2 mt-2">
-            <div class="bg-green-500 h-2 rounded-full" style="width: {{ attendance.attendance_percentage }}%"></div>
+            <div class="bg-green-500 h-2 rounded-full transition-all duration-500" style="width: {{ attendance.attendance_percentage|default:"0.0" }}%"></div>
         </div>
     </div>
 
     <!-- Quick Stats -->
     <div class="grid grid-cols-2 gap-4 mb-6">
-        <div class="bg-green-50 rounded-lg p-3 text-center">
+        <div class="bg-green-50 rounded-lg p-3 text-center hover:bg-green-100 transition-all duration-200">
             <p class="text-sm text-gray-600">Present Days</p>
-            <p class="text-xl font-semibold text-green-600">{{ attendance.total_present }}</p>
+            <p class="text-xl font-semibold text-green-600">{{ attendance.total_present|default:"0" }}</p>
         </div>
-        <div class="bg-red-50 rounded-lg p-3 text-center">
+        <div class="bg-red-50 rounded-lg p-3 text-center hover:bg-red-100 transition-all duration-200">
             <p class="text-sm text-gray-600">Absent Days</p>
-            <p class="text-xl font-semibold text-red-600">{{ attendance.total_absent }}</p>
+            <p class="text-xl font-semibold text-red-600">{{ attendance.total_absent|default:"0" }}</p>
+        </div>
+    </div>
+
+    <!-- Tooltip Section -->
+    <div class="flex justify-between items-center space-x-6">
+        <div class="group relative">
+            <p class="text-sm text-gray-600">Last Recorded Attendance</p>
+            <p class="text-xl font-semibold text-green-600">{{ attendance.attendance_change|default:"0.0" }}%</p>
+            <div class="absolute opacity-0 group-hover:opacity-100 transition-all duration-200 bg-gray-800 text-white text-sm p-2 rounded-lg bottom-6 left-0">
+                Change from the previous period.
+            </div>
+        </div>
+        <div class="group relative">
+            <p class="text-sm text-gray-600">Leave Requests</p>
+            <p class="text-xl font-semibold text-gray-600">{{ attendance.leave_request_count|default:"0" }}</p>
+            <div class="absolute opacity-0 group-hover:opacity-100 transition-all duration-200 bg-gray-800 text-white text-sm p-2 rounded-lg bottom-6 left-0">
+                Total leaves requested by the user.
+            </div>
         </div>
     </div>
 </div>

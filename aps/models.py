@@ -6,6 +6,7 @@ from django.utils.timezone import now
 from django.conf import settings
 from datetime import timedelta
 from django.dispatch import receiver
+import datetime
 
 
 
@@ -86,7 +87,7 @@ class UserSession(models.Model):
 
     def determine_location(self):
         """Determine if the user is working from home or office based on IP address."""
-        office_ips = ['203.0.113.0', '203.0.113.1', '203.0.113.2']  # Example office IPs
+        office_ips = ['192.168.1.233']  # Add your actual office IP addresses here
         return 'Office' if self.ip_address in office_ips else 'Home'
 
     def update_activity(self):
@@ -246,7 +247,8 @@ class Attendance(models.Model):
         ('Pending', 'Pending'),
         ('On Leave', 'On Leave'),
         ('Work From Home', 'Work From Home'),
-        ('Weekend', 'Weekend'),  # Added new status for weekends
+        ('Weekend', 'Weekend'),
+        ('Holiday', 'Holiday'),  # Added for holiday tracking
     ]
 
     user = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -259,80 +261,130 @@ class Attendance(models.Model):
         'Leave', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='attendances'
     )
+    last_updated = models.DateTimeField(auto_now=True)
+    notes = models.TextField(blank=True, null=True)  # For any special remarks
+
+    class Meta:
+        unique_together = ['user', 'date']
+        indexes = [
+            models.Index(fields=['user', 'date']),
+            models.Index(fields=['date']),
+        ]
 
     def calculate_attendance(self):
-        print(f"Calculating attendance for user: {self.user.username}, date: {self.date}")
-
+        """
+        Calculate attendance based on UserSessions and various conditions
+        """
         try:
-            # Check if it's weekend (Saturday or Sunday)
-            if self.date.weekday() >= 5:  # 5 is Saturday, 6 is Sunday
+            # Check for weekend
+            if self.date.weekday() >= 6:
                 self.status = 'Weekend'
                 self.clock_in_time = None
                 self.clock_out_time = None
                 self.total_hours = None
                 return
 
-            # Check for leave request first
-            if self.leave_request:
+            # Check for approved leave
+            if self.leave_request and self.leave_request.is_approved:
                 self.status = 'On Leave'
                 self.clock_in_time = None
                 self.clock_out_time = None
-                self.total_hours = timedelta(seconds=0)
+                self.total_hours = None
                 return
 
-            # Get all UserSessions for the user on the given date
+            # Get all sessions for the day
+            start_of_day = timezone.datetime.combine(self.date, timezone.datetime.min.time())
+            start_of_day = timezone.make_aware(start_of_day)
+            
+            end_of_day = timezone.datetime.combine(self.date, timezone.datetime.max.time())
+            end_of_day = timezone.make_aware(end_of_day)
+
             user_sessions = UserSession.objects.filter(
                 user=self.user,
-                login_time__date=self.date
+                login_time__range=(start_of_day, end_of_day)
             ).order_by('login_time')
 
-            print(f"Found {user_sessions.count()} session(s) for user {self.user.username} on {self.date}")
+            print(f"Debug - Found sessions: {user_sessions.count()} for user {self.user.username} on {self.date}")
 
             if user_sessions.exists():
-                total_worked_seconds = 0
-                first_session = user_sessions.first()
-                last_session = user_sessions.last()
-
-                # Calculate total working hours only for completed sessions
-                for session in user_sessions:
-                    if session.logout_time:
-                        total_worked_seconds += (session.logout_time - session.login_time).total_seconds()
-
-                # Set clock_in_time from first session
-                self.clock_in_time = first_session.login_time.time()
-                
-                # Set clock_out_time from last session if it has logged out
-                if last_session.logout_time:
-                    self.clock_out_time = last_session.logout_time.time()
-                
-                self.total_hours = timedelta(seconds=total_worked_seconds)
-
-                # Determine status based on session location
-                if any(session.location == 'Home' for session in user_sessions):
-                    self.status = 'Work From Home'
-                else:
-                    self.status = 'Present'
+                self._process_sessions(user_sessions)
             else:
-                # Only mark as absent if it's a working day and no leave request
-                if not self.leave_request and self.date < timezone.now().date():
-                    self.status = 'Absent'
-                else:
-                    self.status = 'Pending'
-                self.clock_in_time = None
-                self.clock_out_time = None
-                self.total_hours = None
+                self._set_no_sessions()
+
+             # Handle Work From Home as "Presnet"
+            if self.status == 'Work From Home':
+                self.status = 'Present'
 
         except Exception as e:
-            print(f"Error calculating attendance: {e}")
+            print(f"Error calculating attendance for {self.user.username} on {self.date}: {str(e)}")
+            self._set_pending()
+
+    def _process_sessions(self, user_sessions):
+        """Process existing sessions and calculate attendance"""
+        total_worked_seconds = 0
+        first_session = user_sessions.first()
+        last_session = user_sessions.last()
+
+        for session in user_sessions:
+            if session.logout_time:
+                duration = session.logout_time - session.login_time
+            else:
+                duration = timezone.now() - session.login_time
+            
+            if session.idle_time:
+                duration -= session.idle_time
+            
+            total_worked_seconds += max(duration.total_seconds(), 0)
+
+        self.clock_in_time = first_session.login_time.time()
+        self.clock_out_time = last_session.logout_time.time() if last_session.logout_time else None
+        self.total_hours = timedelta(seconds=total_worked_seconds)
+
+        if any(session.location == 'Home' for session in user_sessions):
+            self.status = 'Work From Home'
+        else:
+            self.status = 'Present'
+
+    def _set_no_sessions(self):
+        """Set attendance when no sessions are found"""
+        if self.date < timezone.now().date():
+            self.status = 'Absent'
+        else:
             self.status = 'Pending'
+        self.clock_in_time = None
+        self.clock_out_time = None
+        self.total_hours = None
+
+    def _set_pending(self):
+        """Set attendance to pending state"""
+        self.status = 'Pending'
+        self.clock_in_time = None
+        self.clock_out_time = None
+        self.total_hours = None
 
     def save(self, *args, **kwargs):
-        print(f"Saving attendance for user: {self.user.username}, date: {self.date}")
-        self.calculate_attendance()
+        """Override save to ensure attendance is calculated and leave_request is linked."""
+        recalculate = kwargs.pop('recalculate', False)  # Changed from force_calculation
+        
+        # Check and link leave request if applicable
+        if not self.leave_request:
+            leave_request = Leave.objects.filter(
+                user=self.user,
+                start_date__lte=self.date,
+                end_date__gte=self.date,
+                status='Approved'
+            ).first()
+            if leave_request:
+                self.leave_request = leave_request
+
+        if recalculate or not self.pk:
+            self.calculate_attendance()
+
         super().save(*args, **kwargs)
-        print(f"Attendance saved for user: {self.user.username}, date: {self.date}, "
-              f"status: {self.status}, clock-in: {self.clock_in_time}, "
-              f"clock-out: {self.clock_out_time}, total hours: {self.total_hours}")
+        print(f"Attendance saved - User: {self.user.username}, Date: {self.date}, "
+            f"Status: {self.status}, Clock-in: {self.clock_in_time}, "
+            f"Clock-out: {self.clock_out_time}, Hours: {self.total_hours}")
+
 
 '''-------------------------------------------- SUPPORT AREA ---------------------------------------'''
 import uuid
@@ -614,17 +666,6 @@ class SystemError(models.Model):
         return f"Error: {self.error_message[:50]} - Resolved: {self.resolved}"
 
 
-# UserComplaint model to track user complaints
-class UserComplaint(models.Model):
-    employee = models.ForeignKey(Employee, on_delete=models.CASCADE)  # Employee who raised the complaint
-    complaint = models.TextField()  # Complaint details
-    complaint_date = models.DateTimeField(auto_now_add=True)  # Date when the complaint was made
-    status = models.CharField(max_length=20, choices=[('Resolved', 'Resolved'), ('Pending', 'Pending')])  # Status of the complaint
-
-    def __str__(self):
-        """Return a string representation of the user complaint."""
-        return f"Complaint by {self.employee.user.username} - Status: {self.status}"
-
 
 ''' ------------------------------------------------- TIMESHEET AREA --------------------------------------------------- '''
 
@@ -662,22 +703,6 @@ def update_reviewed_at(sender, instance, **kwargs):
                 instance.reviewed_at = timezone.now()
         except Timesheet.DoesNotExist:
             pass
-
-
-'''------------------------------------------------ CHAT AREA ---------------------------------------'''
-
-
-class Chat(models.Model):
-    participants = models.ManyToManyField(User)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-
-class Message(models.Model):
-    chat = models.ForeignKey(Chat, on_delete=models.CASCADE, related_name="messages")
-    sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name="sent_messages")
-    recipient = models.ForeignKey(User, on_delete=models.CASCADE, related_name="received_messages")
-    content = models.TextField()
-    timestamp = models.DateTimeField(auto_now_add=True)
 
 
 '''----------------------------- HR --------------------------'''
@@ -718,12 +743,10 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.utils.timezone import now
 from django.core.exceptions import ValidationError
-
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.utils.timezone import now
-
 from datetime import timedelta
 
 class Break(models.Model):
@@ -852,3 +875,26 @@ class ProjectUpdate(models.Model):
 
     def __str__(self):
         return f"Update for {self.project.name} by {self.created_by.username}"
+    
+
+'''---------------------------------- CHAT AREA --------------------------------'''
+
+class Conversation(models.Model):
+    participants = models.ManyToManyField(User)
+    created_at = models.DateTimeField(auto_now_add=True)  # Timestamp of creation
+    is_group_chat = models.BooleanField(default=False)  # To distinguish group chats
+
+    def __str__(self):
+        if self.is_group_chat:
+            return f"Group chat: {', '.join([user.username for user in self.participants.all()])}"
+        else:
+            return f"Conversation between {', '.join([user.username for user in self.participants.all()])}"
+
+class Message(models.Model):
+    conversation = models.ForeignKey(Conversation, related_name="messages", on_delete=models.CASCADE)
+    sender = models.ForeignKey(User, on_delete=models.CASCADE)
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.sender.username}: {self.content[:30]}"

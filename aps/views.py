@@ -4,7 +4,7 @@ from .models import (UserSession, Attendance, SystemError,
                     Support, FailedLoginAttempt, PasswordChange, 
                     RoleAssignmentAudit, FeatureUsage, SystemUsage, 
                     Timesheet,GlobalUpdate,
-                    Message, Chat,UserDetails,ProjectUpdate)
+                     UserDetails,ProjectUpdate)
 from django.db.models import Q
 from datetime import datetime, timedelta, date
 from django.utils import timezone
@@ -30,6 +30,7 @@ from django.template.loader import render_to_string
 import csv
 import openpyxl
 from datetime import datetime, timedelta
+from django.db.models import F, ExpressionWrapper, DurationField
 
 '''------------------------------ TRACKING ------------------------'''
 
@@ -371,27 +372,52 @@ def end_break(request, break_id):
     
     return redirect(f"{reverse('dashboard')}?error=Invalid request method")
 
-# Function to get attendance stats
-def get_attendance_stats(user):
-    # Calculate total days, present days, and absent days
-    total_days = Attendance.objects.filter(user=user).count()
-    present_days = Attendance.objects.filter(user=user, status="Present").count()
-    absent_days = Attendance.objects.filter(user=user, status="Absent").count()
+from django.shortcuts import render
+from django.db.models import Count
 
-    # Calculate attendance percentage
-    attendance_percentage = round((present_days / total_days) * 100, 2) if total_days > 0 else 0
+def get_attendance_stats(request):
+    """
+    Generate and return attendance statistics for the logged-in user.
+    """
+    user = request.user
+    try:
+        # Fetch attendance records
+        total_days = Attendance.objects.filter(user=user).count()
+        present_days = Attendance.objects.filter(user=user, status__in=["Present", "Work From Home"]).count()
+        absent_days = Attendance.objects.filter(user=user, status="Absent").count()
 
-    # Calculate attendance change (e.g., compare with previous period)
-    previous_attendance = Attendance.objects.filter(user=user, date__lt=user.date_joined).last()
-    attendance_change = attendance_percentage - (previous_attendance.percentage if previous_attendance else 0)
+        # Calculate attendance percentage
+        attendance_percentage = round((present_days / total_days) * 100, 2) if total_days > 0 else 0
 
-    return {
-        'attendance_percentage': attendance_percentage,
-        'attendance_change': attendance_change,
-        'total_present': present_days,
-        'total_absent': absent_days,
-        'change_display': abs(attendance_change) if attendance_change < 0 else attendance_change
-    }
+        # Calculate attendance change (compare with previous records)
+        previous_attendance = Attendance.objects.filter(user=user, date__lt=user.date_joined).last()
+        previous_percentage = previous_attendance.percentage if previous_attendance else 0
+        attendance_change = attendance_percentage - previous_percentage
+
+        # Get pending leave request count
+        leave_request_count = Leave.objects.filter(user=user, status='Pending').count()
+
+        # Prepare the statistics dictionary
+        attendance_stats = {
+            'attendance_percentage': attendance_percentage,
+            'attendance_change': round(attendance_change, 2),
+            'total_present': present_days,
+            'total_absent': absent_days,
+            'change_display': abs(round(attendance_change, 2)) if attendance_change < 0 else round(attendance_change, 2),
+            'leave_request_count': leave_request_count,
+        }
+        print(f"Attendance stats: {attendance_stats}")
+
+        # Render the attendance report template
+        return  {
+            'attendance': attendance_stats,
+        }
+
+    except Exception as e:
+        print(f"Error generating attendance report: {str(e)}")
+        return render(request, 'attendance_report.html', {
+            'error': "An error occurred while generating the attendance report.",
+        })
 
 from django.utils import timezone
 
@@ -528,9 +554,47 @@ def dashboard_view(request):
     if 'update_id' in request.GET:
         update = GlobalUpdate.objects.filter(id=request.GET['update_id']).first()
 
+    """Manager's Dashboard view."""
+    
+    # Get the manager's assigned users' breaks
+    project_assignments = ProjectAssignment.objects.filter(
+        project__projectassignment__user=request.user,
+        project__projectassignment__role_in_project='Manager',
+        is_active=True
+    ).values_list('user', flat=True).distinct()
+
+    if project_assignments.exists():
+        active_breaks = Break.objects.filter(user__in=project_assignments, end_time__isnull=True).count()
+    else:
+        active_breaks = 0
+
+    # Initialize present employees count
+    present_employees_count = None
+
+    if is_manager:
+        # Get today's date
+        today = timezone.now().date()
+
+        # Get the manager's assigned projects
+        project_assignments = ProjectAssignment.objects.filter(
+            project__projectassignment__user=request.user,
+            project__projectassignment__role_in_project='Manager',
+            is_active=True
+        )
+
+        # Get the users assigned to the manager's projects
+        users_in_projects = project_assignments.values_list('user', flat=True)
+
+        # Count present employees
+        present_employees_count = Attendance.objects.filter(
+            user__in=users_in_projects,
+            date=today,
+            status='Present'
+        ).count()
     # Context for the dashboard view
     context = {
-        'attendance': get_attendance_stats(user),
+        'active_breaks': active_breaks,
+        'attendance': get_attendance_stats(request),
         'projects': projects,
         'project_timelines': project_timelines,
         'updates': updates,
@@ -548,6 +612,9 @@ def dashboard_view(request):
         'break_types': dict(Break.BREAK_TYPES),
         'break_durations': {k: int(v.total_seconds() / 60) for k, v in Break.BREAK_DURATIONS.items()},
         'user_status': user_status,
+        'present_employees_count': present_employees_count,
+        'present_employees_count': present_employees_count,
+
 
     }
 
@@ -1070,6 +1137,255 @@ def is_admin(user):
     """Check if the user has admin privileges."""
     return user.groups.filter(name='Admin').exists()
 
+
+
+@login_required
+@user_passes_test(is_manager)
+def manager_report_view(request):
+    """Manager report dashboard view."""
+    
+    # Navigation items for the manager dashboard
+    nav_items = [
+        {
+            'id': 'team_breaks',
+            'name': 'Team Breaks',
+            'icon': 'fas fa-coffee',
+            'description': 'Monitor team break patterns and durations.',
+            'url': reverse('aps_manager:break_report_view_manager')
+        },
+        {
+            'id': 'team_attendance',
+            'name': 'Team Attendance',
+            'icon': 'fas fa-calendar-check',
+            'description': 'Track team attendance and working hours.',
+            'url': reverse('aps_manager:attendance_report_view_manager')
+        },
+        {
+            'id': 'project_progress',
+            'name': 'Project Progress',
+            'icon': 'fas fa-tasks',
+            'description': 'View progress of your team\'s projects.',
+            # 'url': reverse('manager:project_progress_report')
+        },
+        {
+            'id': 'leave_management',
+            'name': 'Leave Management',
+            'icon': 'fas fa-user-clock',
+            'description': 'Manage team leave requests and schedules.',
+            # 'url': reverse('manager:leave_management')
+        }
+    ]
+    
+    # Detailed sections for the manager dashboard
+    sections = [
+        {
+            "title": "Team Break Analysis",
+            "description": "Monitor and analyze your team's break patterns",
+            "content": "View break statistics, patterns, and ensure policy compliance.",
+            # "link": reverse('manager:team_breaks_report'),
+            "metrics": [
+                {"label": "Active Breaks", "value": "get_active_breaks_count()"},
+                {"label": "Today's Total Breaks", "value": "get_today_breaks_count()"}
+            ]
+        },
+        {
+            "title": "Team Attendance Overview",
+            "description": "Track your team's attendance and working hours",
+            "content": "Monitor check-ins, working hours, and attendance patterns.",
+            # "link": reverse('manager:team_attendance_report'),
+            "metrics": [
+                {"label": "Team Present", "value": "get_present_count()"},
+                {"label": "On Leave", "value": "get_on_leave_count()"}
+            ]
+        },
+        {
+            "title": "Project Status",
+            "description": "Current status of all projects under your management",
+            "content": "Track project progress, deadlines, and resource allocation.",
+            # "link": reverse('manager:project_progress_report'),
+            "metrics": [
+                {"label": "Active Projects", "value": "get_active_projects_count()"},
+                {"label": "Upcoming Deadlines", "value": "get_upcoming_deadlines_count()"}
+            ]
+        },
+        {
+            "title": "Leave Management",
+            "description": "Manage team leave requests and schedules",
+            "content": "Review and approve leave requests, plan team availability.",
+            # "link": reverse('manager:leave_management'),
+            "metrics": [
+                {"label": "Pending Requests", "value": "get_pending_leaves_count()"},
+                {"label": "Approved Leaves", "value": "get_approved_leaves_count()"}
+            ]
+        }
+    ]
+    
+    context = {
+        'nav_items': nav_items,
+        'sections': sections,
+        'page_title': 'Manager Dashboard',
+        'manager_name': request.user.get_full_name() or request.user.username
+    }
+    
+    return render(request, 'components/manager/report.html', context)
+
+from django.db.models import F, ExpressionWrapper, DurationField
+from django.db.models.functions import Coalesce
+from django.utils import timezone
+
+@login_required
+@user_passes_test(is_manager)
+def break_report_view_manager(request):
+    """View for managers to see breaks taken by users assigned to their projects."""
+
+    # Get filter parameters
+    group_name = request.GET.get('group', '')
+    break_type = request.GET.get('break_type', '')
+    date_str = request.GET.get('date', '')
+
+    # Start with base query
+    breaks_query = Break.objects.select_related('user').all()
+
+    # Filter based on the manager's team (users assigned to projects managed by the manager)
+    project_assignments = ProjectAssignment.objects.filter(
+        project__projectassignment__user=request.user,
+        project__projectassignment__role_in_project='Manager',
+        is_active=True
+    ).values_list('user', flat=True).distinct()
+
+    # Ensure only breaks from users assigned to the manager's projects are visible
+    if project_assignments.exists():
+        breaks_query = breaks_query.filter(user__in=project_assignments)
+    else:
+        # No assigned users for the manager
+        breaks_query = Break.objects.none()
+
+    # Apply additional filters
+    if group_name:
+        breaks_query = breaks_query.filter(user__groups__name=group_name)
+
+    if break_type:
+        breaks_query = breaks_query.filter(break_type=break_type)
+
+    if date_str:
+        try:
+            filter_date = timezone.datetime.strptime(date_str, '%Y-%m-%d').date()
+            breaks_query = breaks_query.filter(start_time__date=filter_date)
+        except ValueError:
+            pass
+
+    # Calculate duration for each break (in minutes), accounting for ongoing breaks
+    breaks_query = breaks_query.annotate(
+        duration=ExpressionWrapper(
+            Coalesce(F('end_time'), timezone.now()) - F('start_time'),
+            output_field=DurationField()
+        )
+    )
+
+    # Convert the duration to minutes after the query
+    for break_obj in breaks_query:
+        if break_obj.duration:
+            break_obj.duration_minutes = break_obj.duration.total_seconds() / 60
+        else:
+            break_obj.duration_minutes = None
+
+    # Order breaks by start time (most recent first)
+    breaks_query = breaks_query.order_by('-start_time')
+
+    # Get available groups based on the manager's team
+    groups = Group.objects.filter(user__in=project_assignments).distinct()
+
+    # Pagination
+    paginator = Paginator(breaks_query, 10)  # 10 breaks per page
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+
+    # Add pagination info
+    page_obj.start = (page_obj.number - 1) * paginator.per_page + 1
+    page_obj.end = min(page_obj.start + paginator.per_page - 1, paginator.count)
+    page_obj.total = paginator.count
+
+    # Define break types
+    break_types = [
+        'Tea Break (10 mins)',
+        'Lunch/Dinner Break (30 mins)',
+        'Tea Break (15 mins)'
+    ]
+
+    # Add role-specific data for managers
+    context = {
+        'breaks': page_obj,
+        'groups': groups,
+        'break_types': break_types,
+        'selected_group': group_name,
+        'selected_break_type': break_type,
+        'selected_date': date_str,
+        'total_breaks': breaks_query.count(),
+        'active_breaks': breaks_query.filter(end_time__isnull=True).count(),
+    }
+
+    return render(request, 'components/manager/break_report.html', context)
+
+
+@login_required
+@user_passes_test(is_manager)
+def attendance_report_view_manager(request):
+    """View for managers to see attendance of users assigned to their projects."""
+    
+
+    # Get the manager's assigned projects
+    project_assignments = ProjectAssignment.objects.filter(
+        project__projectassignment__user=request.user,
+        project__projectassignment__role_in_project='Manager',
+        is_active=True
+    )
+    
+    # Get the users assigned to the manager's projects
+    users_in_projects = project_assignments.values_list('user', flat=True)
+    
+    # Get filter parameters (optional, for filtering attendance records)
+    user_filter = request.GET.get('user', '')  # Optionally filter by specific user
+    date_filter = request.GET.get('date', '')  # Optionally filter by specific date
+
+    # Start with base query for attendance
+    attendance_query = Attendance.objects.filter(user__in=users_in_projects)
+
+    # Apply filtering based on user
+    if user_filter:
+        attendance_query = attendance_query.filter(user__username=user_filter)
+
+    # Apply filtering based on date
+    if date_filter:
+        try:
+            filter_date = timezone.datetime.strptime(date_filter, '%Y-%m-%d').date()
+            attendance_query = attendance_query.filter(date=filter_date)
+        except ValueError:
+            pass  # If date is invalid, no filtering will occur
+
+    # Pagination for better performance
+    paginator = Paginator(attendance_query, 10)  # 10 records per page
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+
+    # Add pagination info
+    page_obj.start = (page_obj.number - 1) * paginator.per_page + 1
+    page_obj.end = min(page_obj.start + paginator.per_page - 1, paginator.count)
+    page_obj.total = paginator.count
+
+    # Add context data
+    context = {
+        'attendance': page_obj,
+        'project_assignments': project_assignments,
+        'users_in_projects': users_in_projects,
+        'selected_user': user_filter,
+        'selected_date': date_filter,
+    }
+
+    return render(request, 'components/manager/attendance_report.html', context)
+
+
+
+
 @login_required  # Ensure the user is logged in
 @user_passes_test(is_admin)  # Ensure the user is an admin
 def report_view(request):
@@ -1085,10 +1401,11 @@ def report_view(request):
             'url': reverse('aps_admin:break_report_view')  # Add URL to the nav item
         },
         {
-            'id': 'featureusage', 
-            'name': 'Feature Usage', 
-            'icon': 'fas fa-chart-line',
-            'description': 'Insights into how features are being used.',
+            'id': 'attendance', 
+            'name': 'Attendace Report', 
+            'icon': 'fas fa-clock',
+            'description': 'View attendance taken by all users.',
+            'url': reverse('aps_admin:attendance')  # Add URL to the nav item
         },
         {
             'id': 'projects', 
@@ -1119,7 +1436,7 @@ def report_view(request):
             "link": "/aps/reports/breaks/",  # Link to the break report page
         },
         {
-            "title": "Feature Usage",
+            "title": "Attendace Report",
             "description": "This section provides insights into how features are being used within the platform.",
             "content": "Coming soon...",
         },
@@ -1143,6 +1460,59 @@ def report_view(request):
     return render(request, 'components/admin/report.html', {'nav_items': nav_items, 'sections': sections})
 
 # View for Feature Usage Information
+
+@login_required
+@user_passes_test(is_admin)
+def admin_attendance_view(request):
+    # Similar improvements for admin view
+    username_filter = request.GET.get('username', '')
+    status_filter = request.GET.get('status', '')
+    date_filter = request.GET.get('date', '')
+    date_range_start = request.GET.get('start_date', '')
+    date_range_end = request.GET.get('end_date', '')
+
+    attendance_summary = Attendance.objects.all()
+
+    if username_filter:
+        attendance_summary = attendance_summary.filter(user__username__icontains=username_filter)
+    if status_filter:
+        attendance_summary = attendance_summary.filter(status=status_filter)
+    if date_filter:
+        try:
+            date_obj = datetime.strptime(date_filter, '%Y-%m-%d').date()
+            attendance_summary = attendance_summary.filter(date=date_obj)
+        except ValueError:
+            pass  # If the date format is incorrect, it will be ignored
+    if date_range_start and date_range_end:
+        try:
+            start_date = datetime.strptime(date_range_start, '%Y-%m-%d').date()
+            end_date = datetime.strptime(date_range_end, '%Y-%m-%d').date()
+            attendance_summary = attendance_summary.filter(date__range=[start_date, end_date])
+        except ValueError:
+            pass  # Handle invalid date format
+
+    attendance_summary = attendance_summary.values(
+        'user', 'user__first_name', 'user__last_name', 'user__username', 'status', 'date', 'total_hours'
+    ).order_by('-date')
+
+    paginator = Paginator(attendance_summary, 10)
+    page = request.GET.get('page', 1)
+
+    try:
+        summary_records = paginator.get_page(page)
+    except EmptyPage:
+        summary_records = paginator.page(paginator.num_pages)
+    except PageNotAnInteger:
+        summary_records = paginator.page(1)
+
+    return render(request, 'components/admin/attendance_report.html', {
+        'summary': summary_records,
+        'username_filter': username_filter,
+        'status_filter': status_filter,
+        'date_filter': date_filter,
+        'date_range_start': date_range_start,
+        'date_range_end': date_range_end,
+    })
 
 @login_required
 @user_passes_test(is_admin)
@@ -2760,7 +3130,7 @@ def hr_attendance_view(request):
         else:
             record.working_hours = None
 
-    return render(request, 'components/hr/hr_admin_attendance.html', {
+    return render(request, 'components/hr/attendance_report.html', {
         'summary': all_records,
         'username_filter': username_filter,
         'status_filter': status_filter,
@@ -2818,58 +3188,6 @@ def export_attendance_excel(queryset):
     return response
 
 
-@login_required
-@user_passes_test(is_admin)
-def admin_attendance_view(request):
-    # Similar improvements for admin view
-    username_filter = request.GET.get('username', '')
-    status_filter = request.GET.get('status', '')
-    date_filter = request.GET.get('date', '')
-    date_range_start = request.GET.get('start_date', '')
-    date_range_end = request.GET.get('end_date', '')
-
-    attendance_summary = Attendance.objects.all()
-
-    if username_filter:
-        attendance_summary = attendance_summary.filter(user__username__icontains=username_filter)
-    if status_filter:
-        attendance_summary = attendance_summary.filter(status=status_filter)
-    if date_filter:
-        try:
-            date_obj = datetime.strptime(date_filter, '%Y-%m-%d').date()
-            attendance_summary = attendance_summary.filter(date=date_obj)
-        except ValueError:
-            pass  # If the date format is incorrect, it will be ignored
-    if date_range_start and date_range_end:
-        try:
-            start_date = datetime.strptime(date_range_start, '%Y-%m-%d').date()
-            end_date = datetime.strptime(date_range_end, '%Y-%m-%d').date()
-            attendance_summary = attendance_summary.filter(date__range=[start_date, end_date])
-        except ValueError:
-            pass  # Handle invalid date format
-
-    attendance_summary = attendance_summary.values(
-        'user', 'user__first_name', 'user__last_name', 'user__username', 'status', 'date', 'working_hours'
-    ).order_by('-date')
-
-    paginator = Paginator(attendance_summary, 10)
-    page = request.GET.get('page', 1)
-
-    try:
-        summary_records = paginator.get_page(page)
-    except EmptyPage:
-        summary_records = paginator.page(paginator.num_pages)
-    except PageNotAnInteger:
-        summary_records = paginator.page(1)
-
-    return render(request, 'components/admin/hr_admin_attendance.html', {
-        'summary': summary_records,
-        'username_filter': username_filter,
-        'status_filter': status_filter,
-        'date_filter': date_filter,
-        'date_range_start': date_range_start,
-        'date_range_end': date_range_end,
-    })
 
 '''------------------------------------------------ SUPPORT  AREA------------------------------------------------'''
 
@@ -3035,130 +3353,64 @@ def hr_support(request, ticket_id=None):
         return redirect('aps_hr:hr_support')
 '''--------------------------- CHAT AREA------------------------'''
 # views.py
-from django.shortcuts import render
-from django.http import JsonResponse
+# aps/views.py
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from django.db import DatabaseError
-from .models import User, Chat, Message, UserSession
+from django.contrib.auth.models import User
+from django.http import HttpResponseForbidden
+from .models import Conversation, Message
 from django.utils import timezone
-
+# View to handle both group and direct conversations
 @login_required
-def chat_view(request):
-    try:
-        # Fetch users except the logged-in user
-        users = User.objects.exclude(id=request.user.id)
+def chat_view(request, conversation_id=None):
+    conversation = None
+    messages = []
 
-        # Fetch the online status for each user
-        users_status = [
-            {
-                'username': user.username,
-                'status': get_user_status(user)
-            }
-            for user in users
-        ]
-    except DatabaseError as e:
-        return JsonResponse({"error": f"Database error: {str(e)}"}, status=500)
+    # If conversation_id is provided, get that conversation
+    if conversation_id:
+        conversation = get_object_or_404(Conversation, id=conversation_id)
+        messages = conversation.messages.all().order_by('created_at')
 
+    # Handle message sending
+    if request.method == 'POST' and 'message' in request.POST:
+        message_content = request.POST.get('message')
+        if message_content and conversation:
+            message = Message(conversation=conversation, sender=request.user, content=message_content)
+            message.save()
+            return redirect('chat:chat_view', conversation_id=conversation.id)
+        
+        if 'participants' in request.POST:
+            # Handle group creation or adding/removing participants
+            if 'create_group' in request.POST:
+                participants_ids = request.POST.getlist('participants')
+                participants = User.objects.filter(id__in=participants_ids)
+
+                conversation = Conversation.objects.create(is_group_chat=True)
+                conversation.participants.add(*participants)
+                conversation.participants.add(request.user)  # Add the creator to the group
+                conversation.save()
+                return redirect('chat:chat_view', conversation_id=conversation.id)
+            elif 'add_participant' in request.POST:
+                user_id = request.POST.get('user_id')
+                user = get_object_or_404(User, id=user_id)
+                conversation.participants.add(user)
+                conversation.save()
+                return redirect('chat:chat_view', conversation_id=conversation.id)
+            elif 'remove_participant' in request.POST:
+                user_id = request.POST.get('user_id')
+                user = get_object_or_404(User, id=user_id)
+                conversation.participants.remove(user)
+                conversation.save()
+                return redirect('chat:chat_view', conversation_id=conversation.id)
+
+    # Display conversations
+    conversations = Conversation.objects.filter(participants=request.user)
     return render(request, 'components/chat/chat.html', {
-        'users_status': users_status
+        'conversation': conversation,
+        'messages': messages,
+        'conversations': conversations,
+        'is_admin': request.user.is_staff
     })
-
-@login_required
-def load_messages(request, recipient_username):
-    try:
-        recipient = User.objects.get(username=recipient_username)
-    except User.DoesNotExist:
-        return JsonResponse({"error": "User not found"}, status=404)
-    except DatabaseError as e:
-        return JsonResponse({"error": f"Database error: {str(e)}"}, status=500)
-
-    try:
-        # Get the chat between the logged-in user and the recipient
-        chat = Chat.objects.filter(
-            participants=request.user
-        ).filter(
-            participants=recipient
-        ).first()
-
-        if not chat:
-            return JsonResponse({"error": "No chat found with the user"}, status=404)
-
-        # Get all messages from the chat
-        messages = Message.objects.filter(chat=chat).order_by('timestamp')
-
-        message_list = [{
-            'sender': message.sender.username,
-            'content': message.content,
-            'timestamp': message.timestamp,
-        } for message in messages]
-
-        return JsonResponse(message_list, safe=False)
-    except DatabaseError as e:
-        return JsonResponse({"error": f"Database error: {str(e)}"}, status=500)
-    except Exception as e:
-        return JsonResponse({"error": f"Unexpected error: {str(e)}"}, status=500)
-
-@login_required
-def send_message(request):
-    if request.method == 'POST':
-        recipient_username = request.POST.get('recipient')
-        content = request.POST.get('message')
-
-        if not recipient_username or not content:
-            return JsonResponse({"error": "Invalid data, recipient or message missing"}, status=400)
-
-        try:
-            recipient = User.objects.get(username=recipient_username)
-        except User.DoesNotExist:
-            return JsonResponse({"error": "User not found"}, status=404)
-        except DatabaseError as e:
-            return JsonResponse({"error": f"Database error: {str(e)}"}, status=500)
-
-        try:
-            # Create or get the chat between the logged-in user and the recipient
-            chat = Chat.objects.filter(
-                participants=request.user
-            ).filter(
-                participants=recipient
-            ).first()
-
-            if not chat:
-                chat = Chat.objects.create()
-
-            # Add participants if not already added
-            chat.participants.add(request.user, recipient)
-
-            # Create the new message
-            message = Message.objects.create(
-                chat=chat,
-                sender=request.user,
-                recipient=recipient,
-                content=content,
-            )
-
-            return JsonResponse({
-                'sender': message.sender.username,
-                'content': message.content,
-                'timestamp': message.timestamp,
-            })
-
-        except DatabaseError as e:
-            return JsonResponse({"error": f"Database error: {str(e)}"}, status=500)
-        except Exception as e:
-            return JsonResponse({"error": f"Unexpected error: {str(e)}"}, status=500)
-
-    return JsonResponse({"error": "Invalid request method, expected POST"}, status=400)
-
-def get_user_status(user):
-    """Function to get the online/offline status of a user"""
-    # Get the latest session of the user
-    user_session = UserSession.objects.filter(user=user).last()
-
-    if user_session and user_session.logout_time is None:
-        return 'Online'
-    else:
-        return 'Offline'
-
 
 '''----- Temeporray views -----'''
 
@@ -3184,3 +3436,7 @@ def approve_leave(request):
 
 
 
+
+
+
+'''-----------------------------'''

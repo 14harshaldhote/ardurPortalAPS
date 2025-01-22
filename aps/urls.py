@@ -1,12 +1,9 @@
 from django.urls import path, include
 from . import views
 from django.urls import re_path
-from . import consumers
 
 # WebSocket URL pattern for the chat system
-websocket_urlpatterns = [
-    path('ws/chat/', consumers.ChatConsumer.as_asgi(), name='chat_ws'),
-]
+
 
 # Admin-specific URLs under 'portal/admin/'
 admin_patterns = [
@@ -103,6 +100,13 @@ manager_patterns = [
     path('delete-project-update/<int:update_id>/', views.manager_delete_project_update, name='manager_delete_project_update'),
 
 
+    path('report/', views.manager_report_view, name='report'),
+    path('reports/breaks/', views.break_report_view_manager, name='break_report_view_manager'),  # Add this path
+    path('reports/attendance/', views.attendance_report_view_manager, name='attendance_report_view_manager'),  # Add this path
+
+
+
+
     path('leave/requests/', views.view_leave_requests_manager, name='view_leave_requests_manager'),
     path('leave/<int:leave_id>/<str:action>/', views.manage_leave_request_manager, name='manage_leave_manager'),
     path('view_timesheets/', views.manager_view_timesheets, name='view_timesheets'), 
@@ -131,10 +135,10 @@ urlpatterns = [
     path('break/take/', views.take_break, name='take_break'),
     path('break/end/<int:break_id>/', views.end_break, name='end_break'),
     # Chat-related views
-    path('chats/', views.chat_view, name='chat_view'),  # Chat view for users
-    path('messages/<str:recipient_username>/', views.load_messages, name='load_messages'),  # Load messages for a specific user
-    path('send_message/', views.send_message, name='send_message'),  # Send a message
-    
+    path('chats/', views.chat_view, name='chat_view'),
+   
+   
+
     # Dashboard view
     path('dashboard/', views.dashboard_view, name='dashboard'),  # Main dashboard view
 

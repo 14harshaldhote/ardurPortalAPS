@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -18,11 +19,13 @@
             flex-direction: column;
             height: 100vh;
         }
+
         .greeting {
             font-family: 'Linlegrey', sans-serif;
             font-size: 3rem;
             font-weight: 100;
         }
+
         @keyframes gradientAnimation {
             0% {
                 background-position: 0% 50%;
@@ -36,6 +39,7 @@
                 background-position: 0% 50%;
             }
         }
+
         .gradient-text {
             background: linear-gradient(45deg, #F29F67, #d54c5a, #118748);
             background-size: 200% 200%;
@@ -43,6 +47,7 @@
             -webkit-text-fill-color: transparent;
             animation: gradientAnimation 5s ease infinite;
         }
+
         .navbar {
             position: fixed;
             top: 0;
@@ -55,6 +60,7 @@
                 0 4px 6px -1px rgba(0, 0, 0, 0.05),
                 0 2px 4px -1px rgba(0, 0, 0, 0.03);
         }
+
         .content-wrapper {
             margin-left: 240px;
             padding: 20px;
@@ -64,6 +70,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="flex">
         <div class="navbar">
@@ -90,16 +97,15 @@
                 {% endblock %}
             </div>
 
-            <div class="fixed bottom-0 right-0 flex flex-col items-end p-4 z-50">
-                <div class="flex items-center gap-2 bg-white/90 backdrop-blur-sm p-3 rounded-lg shadow-lg transition-all duration-300 hover:opacity-100 opacity-70">
-                    <p class="text-gray-800 font-semibold whitespace-nowrap">Product by</p>
-                    <img src="{% static 'images/ardurtech.png' %}" alt="Ardur Technology Watermark" class="w-32 h-auto object-contain">
-                </div>
+
+        </div>
+        <div class="fixed bottom-0 right-0 flex flex-col items-end p-4 z-50">
+            <div
+                class="flex items-center gap-2 bg-white/90 backdrop-blur-sm p-3 rounded-lg shadow-lg transition-all duration-300 hover:opacity-100 opacity-70">
+                <p class="text-gray-800 font-semibold whitespace-nowrap">Product by</p>
+                <img src="{% static 'images/ardurtech.png' %}" alt="Ardur Technology Watermark"
+                    class="w-32 h-auto object-contain">
             </div>
-            
-
-
-
         </div>
     </div>
 

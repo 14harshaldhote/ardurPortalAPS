@@ -42,22 +42,22 @@
                                     <span class="text-sm text-gray-600">
                                         {{ user_status.status|title }}
                                         {% if user_status.status != 'offline' %}
-                                            {% if user_status.idle_time %}
-                                                <span class="text-xs text-gray-500">
-                                                    {% if user_status.idle_time.days %}
-                                                        (Idle: {{ user_status.idle_time.days }} days)
-                                                    {% else %}
-                                                        (Idle: {{ user_status.formatted_idle_time }})
-                                                    {% endif %}
-                                                </span>
+                                        {% if user_status.idle_time %}
+                                        <span class="text-xs text-gray-500">
+                                            {% if user_status.idle_time.days %}
+                                            (Idle: {{ user_status.idle_time.days }} days)
                                             {% else %}
-                                                <span class="text-xs text-gray-500">No idle time</span>
+                                            (Idle: {{ user_status.formatted_idle_time }})
                                             {% endif %}
+                                        </span>
+                                        {% else %}
+                                        <span class="text-xs text-gray-500">No idle time</span>
+                                        {% endif %}
                                         {% endif %}
                                     </span>
                                 </span>
-                                
-                                
+
+
                                 <button class="btn-secondary">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -173,17 +173,33 @@
                                     <h3 class="text-lg font-bold text-gray-900 mb-4">Quick Stats</h3>
                                     <div class="grid grid-cols-2 gap-4">
                                         {% if is_employee %}
+                                        <div class="bg-green-50 rounded-lg p-4">
+                                            <p class="text-sm text-green-600 mb-1">Active Projects</p>
+                                            <p class="text-2xl font-bold text-green-700">{{ projects|length }}</p>
+                                        </div>
                                         <div class="bg-indigo-50 rounded-lg p-4">
                                             <p class="text-sm text-indigo-600 mb-1">Hours Today</p>
                                             <p class="text-2xl font-bold text-indigo-700">{{ hours_logged }}</p>
                                         </div>
                                         {% endif %}
-                                        {% if not is_hr %}
+                                        {% if is_manager %}
                                         <div class="bg-green-50 rounded-lg p-4">
                                             <p class="text-sm text-green-600 mb-1">Active Projects</p>
                                             <p class="text-2xl font-bold text-green-700">{{ projects|length }}</p>
                                         </div>
+                                        <!-- Active Breaks Section -->
+                                        <div class="bg-blue-50 rounded-lg p-4 ">
+                                            <p class="text-sm text-blue-600 mb-1">Active Breaks</p>
+                                            <p class="text-2xl font-bold text-blue-700">{{ active_breaks }}</p>
+                                        </div>
+                                        <!-- Present Employees Section -->
+                                        <div class="bg-yellow-50 rounded-lg p-4">
+                                            <p class="text-sm text-yellow-600 mb-1">Present Employees</p>
+                                            <p class="text-2xl font-bold text-yellow-700">{{ present_employees_count }}
+                                            </p>
+                                        </div>
                                         {% endif %}
+
                                         {% if is_hr %}
                                         <div class="bg-yellow-50 rounded-lg p-4">
                                             <p class="text-sm text-yellow-600 mb-1">Employees Present</p>
