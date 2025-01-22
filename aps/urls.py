@@ -77,10 +77,7 @@ hr_patterns = [
     path('hr/create-update/', views.hr_create_update, name='hr_create_update'),
     path('hr/edit-update/<int:update_id>/', views.hr_edit_update, name='hr_edit_update'),
     path('hr/delete-update/<int:update_id>/', views.hr_delete_update, name='hr_delete_update'),
-
-
     path('employees/', views.employee_directory, name='employee_directory'),
-
 
 ]
 
@@ -104,14 +101,10 @@ manager_patterns = [
     path('reports/breaks/', views.break_report_view_manager, name='break_report_view_manager'),  # Add this path
     path('reports/attendance/', views.attendance_report_view_manager, name='attendance_report_view_manager'),  # Add this path
 
-
-
-
     path('leave/requests/', views.view_leave_requests_manager, name='view_leave_requests_manager'),
     path('leave/<int:leave_id>/<str:action>/', views.manage_leave_request_manager, name='manage_leave_manager'),
     path('view_timesheets/', views.manager_view_timesheets, name='view_timesheets'), 
     path('bulk-update-timesheet/', views.bulk_update_timesheet, name='bulk_update_timesheet'),
-
  # View team timesheets for manager
     path('assign_tasks/', views.assign_tasks, name='assign_tasks'),  # Manager assigns tasks to employees
     # Attendance-related URLs for Manager
@@ -136,8 +129,6 @@ urlpatterns = [
     path('break/end/<int:break_id>/', views.end_break, name='end_break'),
     # Chat-related views
     path('chats/', views.chat_view, name='chat_view'),
-   
-   
 
     # Dashboard view
     path('dashboard/', views.dashboard_view, name='dashboard'),  # Main dashboard view

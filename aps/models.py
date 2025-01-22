@@ -218,8 +218,7 @@ class Leave(models.Model):
             status='Approved',
             start_date__year=year,
             start_date__month=month
-        )
-        
+        )     
         # Count total LOP days in the given month
         total_lop_days = 0
         for leave in lop_leaves:
@@ -236,9 +235,6 @@ class Leave(models.Model):
         balance = cls.get_leave_balance(user)
         return balance['available_leave'] >= requested_days
 
-
-from datetime import timedelta
-from django.utils import timezone
 
 class Attendance(models.Model):
     STATUS_CHOICES = [
@@ -384,6 +380,8 @@ class Attendance(models.Model):
         print(f"Attendance saved - User: {self.user.username}, Date: {self.date}, "
             f"Status: {self.status}, Clock-in: {self.clock_in_time}, "
             f"Clock-out: {self.clock_out_time}, Hours: {self.total_hours}")
+
+
 
 
 '''-------------------------------------------- SUPPORT AREA ---------------------------------------'''

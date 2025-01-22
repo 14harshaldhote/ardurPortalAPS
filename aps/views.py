@@ -376,29 +376,20 @@ from django.shortcuts import render
 from django.db.models import Count
 
 def get_attendance_stats(request):
-    """
-    Generate and return attendance statistics for the logged-in user.
-    """
     user = request.user
     try:
-        # Fetch attendance records
         total_days = Attendance.objects.filter(user=user).count()
         present_days = Attendance.objects.filter(user=user, status__in=["Present", "Work From Home"]).count()
         absent_days = Attendance.objects.filter(user=user, status="Absent").count()
-
-        # Calculate attendance percentage
+        
         attendance_percentage = round((present_days / total_days) * 100, 2) if total_days > 0 else 0
-
-        # Calculate attendance change (compare with previous records)
         previous_attendance = Attendance.objects.filter(user=user, date__lt=user.date_joined).last()
         previous_percentage = previous_attendance.percentage if previous_attendance else 0
         attendance_change = attendance_percentage - previous_percentage
-
-        # Get pending leave request count
+        
         leave_request_count = Leave.objects.filter(user=user, status='Pending').count()
-
-        # Prepare the statistics dictionary
-        attendance_stats = {
+        
+        return {
             'attendance_percentage': attendance_percentage,
             'attendance_change': round(attendance_change, 2),
             'total_present': present_days,
@@ -406,19 +397,16 @@ def get_attendance_stats(request):
             'change_display': abs(round(attendance_change, 2)) if attendance_change < 0 else round(attendance_change, 2),
             'leave_request_count': leave_request_count,
         }
-        print(f"Attendance stats: {attendance_stats}")
-
-        # Render the attendance report template
-        return  {
-            'attendance': attendance_stats,
-        }
-
     except Exception as e:
         print(f"Error generating attendance report: {str(e)}")
-        return render(request, 'attendance_report.html', {
-            'error': "An error occurred while generating the attendance report.",
-        })
-
+        return {
+            'attendance_percentage': 0.0,
+            'attendance_change': 0.0,
+            'total_present': 0,
+            'total_absent': 0,
+            'change_display': 0.0,
+            'leave_request_count': 0,
+        }
 from django.utils import timezone
 
 @login_required
@@ -2055,7 +2043,7 @@ def leave_view(request):
         reason = request.POST.get('reason')
 
         # Print form data to check if it's correctly received
-        print(f"Request Leave - Leave Type: {leave_type}, Start Date: {start_date}, End Date: {end_date}, Reason: {reason}")
+        # print(f"Request Leave - Leave Type: {leave_type}, Start Date: {start_date}, End Date: {end_date}, Reason: {reason}")
 
         try:
             start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
@@ -2953,7 +2941,6 @@ def manager_project_view(request, action=None, project_id=None):
 
 # Views with optimized database queries
 import calendar
-
 @login_required
 def employee_attendance_view(request):
     current_date = datetime.now()
